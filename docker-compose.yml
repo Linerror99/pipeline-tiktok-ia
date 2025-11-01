@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pipeline-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_ID=${PROJECT_ID:-pipeline-video-ia}
+      - BUCKET_NAME=${BUCKET_NAME:-tiktok-pipeline-artifacts-pipeline-video-ia}
+      - REGION=${REGION:-us-central1}
+      - SCRIPT_AGENT_URL=${SCRIPT_AGENT_URL}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+    volumes:
+      - ./backend:/app
+      - ./backend/credentials.json:/app/credentials.json:ro
+      - ~/.config/gcloud:/root/.config/gcloud:ro
+    restart: unless-stopped
+    networks:
+      - pipeline-network
+
+  # Frontend React
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pipeline-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - pipeline-network
+
+networks:
+  pipeline-network:
+    driver: bridge

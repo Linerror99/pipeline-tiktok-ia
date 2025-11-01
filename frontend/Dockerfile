@@ -12,6 +12,9 @@ RUN npm ci
 # Copier le reste du code
 COPY . .
 
+# Copier le fichier d'environnement Docker (utilise backend:8000)
+COPY .env.docker .env
+
 # Build de l'application
 RUN npm run build
 

@@ -17,7 +17,8 @@ const MyVideos = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await axios.get('http://localhost:8000/api/videos');
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await axios.get(`${apiUrl}/api/videos`);
       setVideos(response.data.videos || []);
     } catch (err) {
       setError('Erreur lors du chargement des vidéos');
@@ -29,8 +30,9 @@ const MyVideos = () => {
 
   const handlePlayVideo = async (video) => {
     try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       // Récupérer l'URL de streaming
-      const response = await axios.get(`http://localhost:8000/api/videos/${video.id}/stream`);
+      const response = await axios.get(`${apiUrl}/api/videos/${video.id}/stream`);
       setSelectedVideo({
         ...video,
         stream_url: response.data.stream_url
@@ -43,8 +45,9 @@ const MyVideos = () => {
 
   const handleDownloadVideo = async (video) => {
     try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
       // Récupérer l'URL de téléchargement
-      const response = await axios.get(`http://localhost:8000/api/videos/${video.id}/download`);
+      const response = await axios.get(`${apiUrl}/api/videos/${video.id}/download`);
       
       // Ouvrir l'URL dans un nouvel onglet pour déclencher le téléchargement
       window.open(response.data.download_url, '_blank');
