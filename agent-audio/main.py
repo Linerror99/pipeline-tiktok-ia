@@ -28,47 +28,71 @@ def generate_audio(cloudevent):
 
     print("Contenu du script lu avec succès.")
 
+    # MODIFICATION : Compter les scènes
+    scene_count = script_content.upper().count("VISUEL")
+    print(f"Nombre de scènes détectées : {scene_count}")
+
     narration_text = ""
     
-    # --- CORRECTION ULTIME : Logique insensible aux espaces et variations ---
     for line in script_content.splitlines():
-        # 1. On met en majuscules et on enlève les espaces superflus
         cleaned_line = line.strip().upper()
         
-        # 2. On ignore les lignes qui ne sont pas de la narration
         if "VISUEL" in cleaned_line or "SCÈNE" in cleaned_line or "DURÉE" in cleaned_line:
             continue
 
-        # 3. On cherche la balise "VOIX OFF" (sans les deux-points)
         voix_off_marker = "VOIX OFF"
         marker_pos = cleaned_line.find(voix_off_marker)
         
         if marker_pos != -1:
-            # On cherche la position des deux-points après la balise
             colon_pos = cleaned_line.find(":", marker_pos)
             if colon_pos != -1:
-                # On extrait le texte original (avec casse) après les deux-points
                 original_line = line.strip()
                 text_part = original_line[colon_pos + 1:]
-                narration_text += text_part.strip() + " "
+                
+                # AJOUT : Nettoyage des astérisques et autres marqueurs
+                text_part = text_part.replace('**', '')  # Enlever gras
+                text_part = text_part.replace('*', '')   # Enlever italique
+                text_part = text_part.strip()
+                
+                narration_text += text_part + " "
 
     if not narration_text.strip():
         print("Aucun texte de narration n'a pu être extrait. Arrêt.")
         return "OK"
 
+    # AJOUT : Calcul durée cible et ajustement vitesse
+    target_duration = scene_count * 8  # 8 secondes par scène
+    print(f"Durée cible audio : {target_duration} secondes ({scene_count} scènes × 8s)")
+    
+    word_count = len(narration_text.split())
+    estimated_duration = word_count / 2.5  # ~2.5 mots/seconde en vitesse normale
+    
+    # Calculer le ratio de vitesse pour atteindre la durée cible
+    if estimated_duration > 0:
+        speed_ratio = estimated_duration / target_duration
+        # Limiter entre 0.8 et 1.2 pour rester naturel
+        speed_ratio = max(0.8, min(1.2, speed_ratio))
+    else:
+        speed_ratio = 1.0
+    
+    print(f"Mots : {word_count}, Durée estimée : {estimated_duration:.1f}s, Ratio vitesse : {speed_ratio:.2f}x")
+    
     print(f"Génération de l'audio avec la voix Gemini 'Rasalgethi'...")
 
-    # Le reste du code est identique et correct
     input_text = texttospeech.SynthesisInput(text=narration_text)
 
     try:
         response = tts_client.synthesize_speech(
             input=input_text,
             voice=texttospeech.VoiceSelectionParams(
-                language_code="fr-fr", name="Rasalgethi", model_name="gemini-2.5-pro-tts"
+                language_code="fr-fr", 
+                name="Rasalgethi", 
+                model_name="gemini-2.5-pro-tts"
             ),
             audio_config=texttospeech.AudioConfig(
-                audio_encoding=texttospeech.AudioEncoding.MP3, speaking_rate=1.0, pitch=0
+                audio_encoding=texttospeech.AudioEncoding.MP3, 
+                speaking_rate=speed_ratio,  # MODIFIÉ : vitesse ajustée
+                pitch=0
             )
         )
     except Exception as e:
@@ -86,4 +110,5 @@ def generate_audio(cloudevent):
         return
 
     print(f"Fichier audio sauvegardé : {output_audio_filename}")
+    print(f"✅ Audio ajusté pour {scene_count} scènes (~{target_duration}s)")
     return "OK"
