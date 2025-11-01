@@ -1,0 +1,48 @@
+## Resolver DNS pour Cloud Run (Google DNS)
+resolver 8.8.8.8 8.8.4.4 valid=300s;
+resolver_timeout 5s;
+
+server {
+    listen 80;
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # Proxy pour l'API backend — injecté via BACKEND_URL
+    location /api/ {
+        # Extraire le host du BACKEND_URL pour le header Host
+        proxy_pass ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        
+        # Ajouter le token d'authentification pour Cloud Run
+        # La variable $auth_token est définie dans conf.d/auth.conf
+        # et contient le token Bearer si on est sur Cloud Run
+        proxy_set_header Authorization $auth_token;
+        
+        # Timeouts pour Cloud Run
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Cache des assets statiques
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
