@@ -1,6 +1,5 @@
 import functions_framework
 from google.cloud import storage
-# On importe bien la v1beta1, c'est crucial
 from google.cloud import texttospeech_v1beta1 as texttospeech
 import re
 
@@ -30,20 +29,28 @@ def generate_audio(cloudevent):
     print("Contenu du script lu avec succès.")
 
     narration_text = ""
-    script_started = False
     
+    # --- CORRECTION ULTIME : Logique insensible aux espaces et variations ---
     for line in script_content.splitlines():
-        cleaned_line = line.strip().replace('*', '').replace('#', '')
-        if not cleaned_line: continue
-        if not script_started:
-            if cleaned_line.upper().startswith(("(SCÈNE", "[SCÈNE")):
-                script_started = True
-            else:
-                continue
-        line_upper = cleaned_line.upper()
-        if any(keyword in line_upper for keyword in ["(SCÈNE", "[SCÈNE", "VISUEL:", "TITRE:", "MUSIQUE:"]): continue
-        if line_upper.startswith("VOIX OFF:"):
-            narration_text += cleaned_line[9:].strip() + " "
+        # 1. On met en majuscules et on enlève les espaces superflus
+        cleaned_line = line.strip().upper()
+        
+        # 2. On ignore les lignes qui ne sont pas de la narration
+        if "VISUEL" in cleaned_line or "SCÈNE" in cleaned_line or "DURÉE" in cleaned_line:
+            continue
+
+        # 3. On cherche la balise "VOIX OFF" (sans les deux-points)
+        voix_off_marker = "VOIX OFF"
+        marker_pos = cleaned_line.find(voix_off_marker)
+        
+        if marker_pos != -1:
+            # On cherche la position des deux-points après la balise
+            colon_pos = cleaned_line.find(":", marker_pos)
+            if colon_pos != -1:
+                # On extrait le texte original (avec casse) après les deux-points
+                original_line = line.strip()
+                text_part = original_line[colon_pos + 1:]
+                narration_text += text_part.strip() + " "
 
     if not narration_text.strip():
         print("Aucun texte de narration n'a pu être extrait. Arrêt.")
@@ -51,38 +58,21 @@ def generate_audio(cloudevent):
 
     print(f"Génération de l'audio avec la voix Gemini 'Rasalgethi'...")
 
+    # Le reste du code est identique et correct
     input_text = texttospeech.SynthesisInput(text=narration_text)
 
-    # --- CORRECTION FINALE : Reproduction exacte de votre JSON ---
-    voice = texttospeech.VoiceSelectionParams(
-        language_code="fr-fr",  # Votre format
-        name="Rasalgethi",      # Votre format
-        # On ne met PAS modelName ici
-    )
-    
-    audio_config = texttospeech.AudioConfig(
-        audio_encoding=texttospeech.AudioEncoding.MP3, # On garde MP3 pour la taille
-        speaking_rate=1.0,
-        pitch=0
-    )
-
-    # On construit la requête avec le paramètre `model_name` dans `voice`
-    # La bibliothèque Python mappe `modelName` à `model_name`
     try:
         response = tts_client.synthesize_speech(
             input=input_text,
             voice=texttospeech.VoiceSelectionParams(
-                language_code="fr-fr",
-                name="Rasalgethi",
-                model_name="gemini-2.5-pro-tts" # Le paramètre est ici
+                language_code="fr-fr", name="Rasalgethi", model_name="gemini-2.5-pro-tts"
             ),
-            audio_config=audio_config
+            audio_config=texttospeech.AudioConfig(
+                audio_encoding=texttospeech.AudioEncoding.MP3, speaking_rate=1.0, pitch=0
+            )
         )
     except Exception as e:
         print(f"Erreur lors de l'appel à l'API Text-to-Speech : {e}")
-        # On ajoute plus de détails sur l'erreur pour le débogage
-        import traceback
-        traceback.print_exc()
         return
 
     print("Audio généré avec succès.")
