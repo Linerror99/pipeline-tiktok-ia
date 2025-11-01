@@ -24,9 +24,15 @@ FROM nginx:alpine
 # Copier le build depuis le stage builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copier la configuration Nginx personnalisée
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Installer les outils nécessaires: envsubst et curl
+RUN apk add --no-cache gettext curl
+
+# Copier le template nginx et le script de démarrage
+COPY nginx.conf.template /etc/nginx/nginx.conf.template
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Le script start.sh générera /etc/nginx/conf.d/default.conf depuis le template
+ENTRYPOINT ["/start.sh"]

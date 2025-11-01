@@ -33,7 +33,7 @@ const CreateVideo = () => {
     setStatus({ stage: 1, message: 'Démarrage de la génération...' });
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const apiUrl = import.meta.env.VITE_API_URL || '';
       // TODO: Remplacer par votre URL Cloud Function
       const response = await axios.post(`${apiUrl}/api/videos/create`, {
         theme: theme
