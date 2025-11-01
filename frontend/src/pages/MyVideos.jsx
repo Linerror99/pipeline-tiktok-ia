@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Video, Download, Play, Clock, Loader2, RefreshCw } from 'lucide-react';
 import axios from 'axios';
+import VideoModal from '../components/VideoModal';
 
 const MyVideos = () => {
   const [videos, setVideos] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
     fetchVideos();
@@ -15,7 +17,6 @@ const MyVideos = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // TODO: Remplacer par votre URL API
       const response = await axios.get('http://localhost:8000/api/videos');
       setVideos(response.data.videos || []);
     } catch (err) {
@@ -23,6 +24,33 @@ const MyVideos = () => {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handlePlayVideo = async (video) => {
+    try {
+      // Récupérer l'URL de streaming
+      const response = await axios.get(`http://localhost:8000/api/videos/${video.id}/stream`);
+      setSelectedVideo({
+        ...video,
+        stream_url: response.data.stream_url
+      });
+    } catch (err) {
+      console.error('Erreur lors de la récupération du stream:', err);
+      alert('Impossible de charger la vidéo');
+    }
+  };
+
+  const handleDownloadVideo = async (video) => {
+    try {
+      // Récupérer l'URL de téléchargement
+      const response = await axios.get(`http://localhost:8000/api/videos/${video.id}/download`);
+      
+      // Ouvrir l'URL dans un nouvel onglet pour déclencher le téléchargement
+      window.open(response.data.download_url, '_blank');
+    } catch (err) {
+      console.error('Erreur lors du téléchargement:', err);
+      alert('Impossible de télécharger la vidéo');
     }
   };
 
@@ -80,9 +108,10 @@ const MyVideos = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-8">
+    <>
+      <div className="max-w-7xl mx-auto">
+        {/* Page Header */}
+        <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-pink-600 bg-clip-text text-transparent">
             Mes Vidéos
@@ -164,11 +193,17 @@ const MyVideos = () => {
                 {/* Actions */}
                 {video.status === 'completed' && (
                   <div className="flex space-x-2 pt-2">
-                    <button className="flex-1 bg-primary hover:bg-pink-600 text-white text-sm font-semibold py-2 rounded-lg transition-all duration-200">
+                    <button 
+                      onClick={() => handlePlayVideo(video)}
+                      className="flex-1 bg-primary hover:bg-pink-600 text-white text-sm font-semibold py-2 rounded-lg transition-all duration-200"
+                    >
                       <Play className="w-4 h-4 inline mr-1" />
                       Voir
                     </button>
-                    <button className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold py-2 rounded-lg transition-all duration-200">
+                    <button 
+                      onClick={() => handleDownloadVideo(video)}
+                      className="flex-1 bg-gray-700 hover:bg-gray-600 text-white text-sm font-semibold py-2 rounded-lg transition-all duration-200"
+                    >
                       <Download className="w-4 h-4 inline mr-1" />
                       Télécharger
                     </button>
@@ -189,6 +224,15 @@ const MyVideos = () => {
         </div>
       )}
     </div>
+
+    {/* Video Modal */}
+    {selectedVideo && (
+      <VideoModal 
+        video={selectedVideo} 
+        onClose={() => setSelectedVideo(null)} 
+      />
+    )}
+  </>
   );
 };
 

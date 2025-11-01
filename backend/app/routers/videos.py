@@ -71,10 +71,10 @@ async def get_video_status(video_id: str):
 @router.get("/{video_id}/download")
 async def download_video(video_id: str):
     """
-    Récupère l'URL de téléchargement d'une vidéo
+    Récupère l'URL de téléchargement d'une vidéo (force le téléchargement du fichier)
     """
     try:
-        url = storage_service.get_video_url(video_id)
+        url = storage_service.get_video_url(video_id, expiration_minutes=60)
         if not url:
             raise HTTPException(status_code=404, detail="Vidéo non trouvée")
         
@@ -83,3 +83,20 @@ async def download_video(video_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération de l'URL: {str(e)}")
+
+
+@router.get("/{video_id}/stream")
+async def stream_video(video_id: str):
+    """
+    Récupère l'URL de streaming d'une vidéo (lecture dans le navigateur)
+    """
+    try:
+        url = storage_service.get_video_stream_url(video_id)
+        if not url:
+            raise HTTPException(status_code=404, detail="Vidéo non trouvée")
+        
+        return {"video_id": video_id, "stream_url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la récupération de l'URL de streaming: {str(e)}")
