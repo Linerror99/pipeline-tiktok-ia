@@ -15,7 +15,10 @@ server {
 
     # Proxy pour l'API backend — injecté via BACKEND_URL
     location /api/ {
-        # Extraire le host du BACKEND_URL pour le header Host
+        # Retirer le préfixe /api/ avant de proxifier vers le backend
+        # /api/auth/verify-code devient /auth/verify-code
+        rewrite ^/api/(.*)$ /$1 break;
+        
         proxy_pass ${BACKEND_URL};
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
@@ -25,10 +28,13 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
         
-        # Ajouter le token d'authentification pour Cloud Run
-        # La variable $auth_token est définie dans conf.d/auth.conf
-        # et contient le token Bearer si on est sur Cloud Run
-        proxy_set_header Authorization $auth_token;
+        # Préserver le header Authorization du client (JWT)
+        # Si absent, utiliser $auth_token pour Cloud Run
+        # $http_authorization contient le header Authorization envoyé par le client
+        proxy_set_header Authorization $http_authorization;
+        
+        # Ajouter le token Cloud Run dans un header séparé pour l'authentification service-to-service
+        proxy_set_header X-Serverless-Authorization $auth_token;
         
         # Timeouts pour Cloud Run
         proxy_connect_timeout 60s;

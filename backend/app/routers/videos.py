@@ -8,7 +8,7 @@ from ..models.auth import UserInDB
 from ..utils.jwt import get_current_user
 
 
-router = APIRouter(prefix="/api/videos", tags=["videos"])
+router = APIRouter(prefix="/videos", tags=["videos"])
 
 
 class VideoCreateRequest(BaseModel):

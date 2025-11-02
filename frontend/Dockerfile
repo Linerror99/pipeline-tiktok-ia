@@ -30,7 +30,12 @@ RUN apk add --no-cache gettext curl
 # Copier le template nginx et le script de démarrage
 COPY nginx.conf.template /etc/nginx/nginx.conf.template
 COPY start.sh /start.sh
-RUN chmod +x /start.sh
+
+# S'assurer que le script a les fins de ligne Linux (LF) et est exécutable
+RUN apk add --no-cache dos2unix && \
+    dos2unix /start.sh && \
+    chmod +x /start.sh && \
+    apk del dos2unix
 
 EXPOSE 80
 

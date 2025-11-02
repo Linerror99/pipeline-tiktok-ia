@@ -328,9 +328,57 @@ pipeline-video-tiktok/
 
 ---
 
-## 🚀 Améliorations Futures
+## � Système d'Authentification
 
-- [ ] Interface web pour générer des vidéos
+L'application dispose d'un système d'authentification complet pour protéger vos ressources :
+
+### Fonctionnalités
+- ✅ **Code d'accès rotatif** : Code de 8 caractères qui change toutes les heures
+- ✅ **Authentification JWT** : Tokens sécurisés avec expiration de 7 jours
+- ✅ **Système de quotas** : 2 vidéos max pour utilisateurs normaux, illimité pour admins
+- ✅ **Backend privé** : API accessible uniquement via le frontend (Cloud Run authentifié)
+- ✅ **Workload Identity** : Pas de credentials.json en production
+
+### Architecture Sécurisée
+
+```
+Frontend (PUBLIC) → Nginx Proxy → Backend (PRIVÉ)
+     ↓                              ↓
+Service Account            Service Account
+Frontend SA               Backend SA
+  └─ Invoke Backend         └─ Storage Admin
+                            └─ Firestore User
+```
+
+### Obtenir le Code d'Accès
+
+Le code change automatiquement toutes les heures. Pour l'obtenir :
+
+```bash
+# Appeler la Cloud Function de rotation
+curl https://rotate-access-code-5ranhgrf2q-uc.a.run.app/
+```
+
+Ou consulter directement Firestore :
+```bash
+# Via Firebase Console
+https://console.firebase.google.com/project/pipeline-video-ia/firestore
+
+# Collection: config
+# Document: access_code
+```
+
+### Utilisation
+
+1. **Obtenir le code actuel** (change toutes les heures)
+2. **S'inscrire** avec email + mot de passe + code
+3. **Se connecter** avec email + mot de passe + code
+4. **Créer des vidéos** (quota vérifié automatiquement)
+
+## �🚀 Améliorations Futures
+
+- [x] Interface web pour générer des vidéos
+- [x] Système d'authentification avec quotas
 - [ ] Publication automatique sur TikTok/YouTube
 - [ ] Support multi-langues
 - [ ] Templates de styles visuels personnalisés

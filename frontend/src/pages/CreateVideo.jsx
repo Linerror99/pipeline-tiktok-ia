@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 
 const CreateVideo = () => {
+  const { refreshUser } = useAuth();
   const [theme, setTheme] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [status, setStatus] = useState(null);
@@ -33,9 +35,9 @@ const CreateVideo = () => {
     setStatus({ stage: 1, message: 'Démarrage de la génération...' });
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       // TODO: Remplacer par votre URL Cloud Function
-      const response = await axios.post(`${apiUrl}/api/videos/create`, {
+      const response = await axios.post(`${apiUrl}/videos/create`, {
         theme: theme
       });
 
@@ -63,6 +65,8 @@ const CreateVideo = () => {
         setStatus({ stage: 5, message: 'Vidéo générée avec succès !' });
         setIsGenerating(false);
         clearInterval(interval);
+        // Rafraîchir les données utilisateur (quota)
+        refreshUser();
       }
     }, 5000);
   };
