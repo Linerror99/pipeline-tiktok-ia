@@ -25,6 +25,14 @@ echo -e "${BLUE}=== Déploiement sur Cloud Run ===${NC}\n"
 BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend:latest"
 FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/frontend:latest"
 
+# Générer un JWT_SECRET_KEY sécurisé si non défini
+if [ -z "$JWT_SECRET_KEY" ]; then
+    echo -e "${YELLOW}⚠️  JWT_SECRET_KEY non défini, génération automatique...${NC}"
+    JWT_SECRET_KEY=$(openssl rand -hex 32)
+    echo -e "${GREEN}✓ JWT_SECRET_KEY généré: ${JWT_SECRET_KEY}${NC}"
+    echo -e "${YELLOW}⚠️  Sauvegardez cette clé pour les futurs déploiements !${NC}\n"
+fi
+
 # Déployer le backend (PRIVÉ - seulement accessible par le frontend)
 echo -e "${BLUE}1. Déploiement du backend (mode sécurisé)...${NC}"
 gcloud run deploy pipeline-backend \
@@ -33,7 +41,7 @@ gcloud run deploy pipeline-backend \
     --region=${REGION} \
     --no-allow-unauthenticated \
     --service-account=${BACKEND_SA} \
-    --set-env-vars="PROJECT_ID=${PROJECT_ID},BUCKET_NAME=${BUCKET_NAME},REGION=${REGION},SCRIPT_AGENT_URL=${SCRIPT_AGENT_URL}" \
+    --set-env-vars="PROJECT_ID=${PROJECT_ID},BUCKET_NAME=${BUCKET_NAME},REGION=${REGION},SCRIPT_AGENT_URL=${SCRIPT_AGENT_URL},JWT_SECRET_KEY=${JWT_SECRET_KEY},JWT_ALGORITHM=HS256,JWT_EXPIRE_DAYS=7" \
     --memory=512Mi \
     --cpu=1 \
     --max-instances=10 \

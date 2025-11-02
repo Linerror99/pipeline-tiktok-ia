@@ -17,9 +17,9 @@ const MyVideos = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Si VITE_API_URL est vide ou undefined, utiliser '' pour URL relative (proxy nginx)
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await axios.get(`${apiUrl}/api/videos`);
+      // Si VITE_API_URL est vide ou undefined, utiliser '/api' pour proxy nginx
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      const response = await axios.get(`${apiUrl}/videos`);
       setVideos(response.data.videos || []);
     } catch (err) {
       setError('Erreur lors du chargement des vidéos');
@@ -31,9 +31,9 @@ const MyVideos = () => {
 
   const handlePlayVideo = async (video) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       // Récupérer l'URL de streaming
-      const response = await axios.get(`${apiUrl}/api/videos/${video.id}/stream`);
+      const response = await axios.get(`${apiUrl}/videos/${video.id}/stream`);
       setSelectedVideo({
         ...video,
         stream_url: response.data.stream_url
@@ -46,9 +46,9 @@ const MyVideos = () => {
 
   const handleDownloadVideo = async (video) => {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
       // Récupérer l'URL de téléchargement
-      const response = await axios.get(`${apiUrl}/api/videos/${video.id}/download`);
+      const response = await axios.get(`${apiUrl}/videos/${video.id}/download`);
       
       // Ouvrir l'URL dans un nouvel onglet pour déclencher le téléchargement
       window.open(response.data.download_url, '_blank');

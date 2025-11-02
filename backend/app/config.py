@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     
+    # JWT Configuration
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production-min-32-chars"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
+    
     # CORS Configuration
     CORS_ORIGINS: list = [
         "http://localhost",
@@ -33,6 +38,11 @@ class Settings(BaseSettings):
         # Autoriser les requêtes depuis le frontend conteneurisé
         "http://frontend",
     ]
+    
+    # JWT Configuration
+    JWT_SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production-2024"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_DAYS: int = 7
     
     class Config:
         env_file = ".env"

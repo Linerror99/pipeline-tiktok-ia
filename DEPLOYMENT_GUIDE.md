@@ -1,6 +1,6 @@
 # Guide de Déploiement Sécurisé sur Cloud Run
 
-Ce guide explique comment déployer l'application avec **Workload Identity** et des **accès restreints** pour une sécurité maximale.
+Ce guide explique comment déployer l'application avec **Workload Identity**, des **accès restreints** et un **système d'authentification JWT** avec quotas utilisateurs pour une sécurité maximale.
 
 ## 🔒 Architecture de Sécurité
 
@@ -181,7 +181,52 @@ Après `./deploy.sh`, vous verrez :
 | **Frontend → Backend** | Réseau Docker | HTTPS + Token |
 | **Accès public Backend** | Non (réseau privé) | Non (--no-allow-unauthenticated) |
 
-## 🔄 Mises à jour
+## � Configuration de l'Authentification
+
+### 1. Déployer la Cloud Function de rotation des codes
+
+```bash
+cd cloud-functions
+./deploy-scheduler.sh
+```
+
+Cela crée :
+- Cloud Function `rotate-access-code` (génère un code toutes les heures)
+- Cloud Scheduler job (cron: `0 * * * *`)
+
+### 2. Initialiser Firestore avec le premier code et un compte admin
+
+```bash
+cd cloud-functions
+python init-firestore.py
+```
+
+Cela crée :
+- Collection `config` avec le premier code d'accès
+- Collection `users` avec un compte admin
+
+### 3. Variables d'environnement nécessaires
+
+Le script `deploy.sh` génère automatiquement un `JWT_SECRET_KEY` sécurisé.
+
+**⚠️ Important** : Sauvegardez le `JWT_SECRET_KEY` affiché lors du premier déploiement pour les mises à jour futures !
+
+Pour utiliser votre propre clé :
+```bash
+JWT_SECRET_KEY="votre-clé-32-caractères" ./deploy.sh
+```
+
+### 4. Obtenir le code d'accès actuel
+
+```bash
+# Via Cloud Function
+curl https://rotate-access-code-5ranhgrf2q-uc.a.run.app/
+
+# Via Firestore
+gcloud firestore collections get config --project=pipeline-video-ia
+```
+
+## �🔄 Mises à jour
 
 Pour redéployer après des modifications :
 
@@ -189,9 +234,11 @@ Pour redéployer après des modifications :
 # 1. Rebuild et push les images
 ./build-and-push.sh
 
-# 2. Redéployer (pas besoin de refaire setup-iam.sh)
-./deploy.sh
+# 2. Redéployer (utilisez la même JWT_SECRET_KEY !)
+JWT_SECRET_KEY="votre-clé-sauvegardée" ./deploy.sh
 ```
+
+**Note** : Si vous ne spécifiez pas `JWT_SECRET_KEY`, une nouvelle clé sera générée et **tous les tokens JWT existants seront invalidés** (les utilisateurs devront se reconnecter).
 
 ## 🧹 Nettoyage
 

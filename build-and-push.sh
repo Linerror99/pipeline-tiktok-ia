@@ -36,15 +36,15 @@ BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend"
 FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/frontend"
 
 # Build et push backend
-echo -e "\n${BLUE}3. Build de l'image backend...${NC}"
-docker build -t ${BACKEND_IMAGE}:latest ./backend
+echo -e "\n${BLUE}3. Build de l'image backend (avec --no-cache)...${NC}"
+docker build --no-cache -t ${BACKEND_IMAGE}:latest ./backend
 
 echo -e "\n${BLUE}4. Push de l'image backend...${NC}"
 docker push ${BACKEND_IMAGE}:latest
 
 # Build et push frontend
-echo -e "\n${BLUE}5. Build de l'image frontend...${NC}"
-docker build -t ${FRONTEND_IMAGE}:latest ./frontend
+echo -e "\n${BLUE}5. Build de l'image frontend (avec --no-cache)...${NC}"
+docker build --no-cache -t ${FRONTEND_IMAGE}:latest ./frontend
 
 echo -e "\n${BLUE}6. Push de l'image frontend...${NC}"
 docker push ${FRONTEND_IMAGE}:latest
