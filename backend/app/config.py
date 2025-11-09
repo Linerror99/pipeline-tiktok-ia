@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     
     # Cloud Function URLs
     SCRIPT_AGENT_URL: Optional[str] = None
+    ACCESS_CODE_FUNCTION_URL: Optional[str] = None
     # Path to a service account JSON key file (for local/dev). When provided,
     # this value will be set into the environment as GOOGLE_APPLICATION_CREDENTIALS
     # so google-cloud-storage can pick it up automatically.

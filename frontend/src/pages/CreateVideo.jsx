@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle, AlertCircle, Key } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 
 const CreateVideo = () => {
   const { refreshUser } = useAuth();
   const [theme, setTheme] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [status, setStatus] = useState(null);
   const [videoId, setVideoId] = useState(null);
@@ -28,7 +29,7 @@ const CreateVideo = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!theme.trim()) return;
+    if (!theme.trim() || !accessCode.trim()) return;
 
     setIsGenerating(true);
     setError(null);
@@ -36,9 +37,9 @@ const CreateVideo = () => {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
-      // TODO: Remplacer par votre URL Cloud Function
       const response = await axios.post(`${apiUrl}/videos/create`, {
-        theme: theme
+        theme: theme,
+        access_code: accessCode
       });
 
       setVideoId(response.data.video_id);
@@ -89,6 +90,28 @@ const CreateVideo = () => {
       {/* Main Form Card */}
       <div className="card mb-8">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Access Code Input */}
+          <div>
+            <label className="flex items-center text-sm font-semibold mb-3 text-gray-300">
+              <Key className="w-4 h-4 mr-2 text-primary" />
+              🔐 Code d'accès
+            </label>
+            <input
+              type="text"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+              placeholder="ABC12345"
+              className="input-field text-center text-xl font-mono tracking-wider"
+              disabled={isGenerating}
+              maxLength={8}
+              minLength={8}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              🔄 Le code change toutes les heures. Contactez l'admin pour l'obtenir.
+            </p>
+          </div>
+
           {/* Theme Input */}
           <div>
             <label className="block text-sm font-semibold mb-3 text-gray-300">
@@ -129,7 +152,7 @@ const CreateVideo = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!theme.trim() || isGenerating}
+            disabled={!theme.trim() || !accessCode.trim() || accessCode.length !== 8 || isGenerating}
             className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isGenerating ? (

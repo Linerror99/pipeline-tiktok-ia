@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Annotated
 from ..services.storage import storage_service
 from ..services.video_generation import video_generation_service
-from ..services.firestore_service import can_create_video, increment_video_count
+from ..services.firestore_service import can_create_video, increment_video_count, verify_access_code
 from ..models.auth import UserInDB
 from ..utils.jwt import get_current_user
 
@@ -13,6 +13,7 @@ router = APIRouter(prefix="/videos", tags=["videos"])
 
 class VideoCreateRequest(BaseModel):
     theme: str
+    access_code: str = Field(..., min_length=8, max_length=8, description="Code d'accès actuel")
 
 
 class VideoResponse(BaseModel):
@@ -34,13 +35,20 @@ async def create_video(
 ):
     """
     Déclenche la génération d'une nouvelle vidéo TikTok
-    Protégé par JWT - nécessite authentification
+    Protégé par JWT + Code d'accès - nécessite authentification ET code valide
     """
     if not request.theme or len(request.theme.strip()) == 0:
         raise HTTPException(status_code=400, detail="Le thème ne peut pas être vide")
     
     if len(request.theme) > 500:
         raise HTTPException(status_code=400, detail="Le thème est trop long (max 500 caractères)")
+    
+    # Vérifier le code d'accès
+    if not verify_access_code(request.access_code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Code d'accès invalide. Il change toutes les heures."
+        )
     
     # Vérifier le quota
     if not can_create_video(current_user):
