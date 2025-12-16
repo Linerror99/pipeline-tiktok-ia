@@ -1,12 +1,15 @@
 import functions_framework
-from google.cloud import storage
+from google.cloud import storage, firestore
 import google.auth
 from google.auth.transport.requests import Request
 import requests
 import os
 import re
+import time
+from datetime import datetime
 
 storage_client = storage.Client()
+firestore_client = firestore.Client()
 credentials, project_id = google.auth.default()
 
 def get_access_token():
@@ -98,6 +101,9 @@ def generate_video(cloudevent):
         
         print(f"🚀 Lancement de {len(scenes)} tâches Veo en parallèle...")
         
+        # Préparer le document video_status centralisé
+        clips_data = {}
+        
         for scene in scenes:
             scene_index = scene['index']  # INDEX ORIGINAL (pas l'ordre de la boucle)
             prompt = scene['prompt']
@@ -129,9 +135,45 @@ def generate_video(cloudevent):
                 operation_name = operation_data.get('name', 'N/A')
                 print(f"    ✓ Tâche lancée pour Scène {scene_index}")
                 print(f"      Opération : {operation_name}")
+                
+                # Enregistrer dans le dictionnaire
+                clips_data[str(scene_index)] = {
+                    'status': 'pending',
+                    'operation_name': operation_name,
+                    'prompt': prompt,
+                    'retry_count': 0,
+                    'gcs_uri': None
+                }
             else:
                 print(f"    ❌ Erreur API pour Scène {scene_index} (code {response.status_code})")
                 print(f"       {response.text}")
+                
+                # Enregistrer l'échec
+                clips_data[str(scene_index)] = {
+                    'status': 'failed',
+                    'operation_name': None,
+                    'prompt': prompt,
+                    'retry_count': 0,
+                    'gcs_uri': None,
+                    'error': response.text[:200]
+                }
+        
+        # Créer le document video_status centralisé dans Firestore
+        video_status_ref = firestore_client.collection('video_status').document(video_base_name)
+        video_status_ref.set({
+            'video_id': video_base_name,
+            'total_clips': len(scenes),
+            'completed_clips': 0,
+            'status': 'processing',  # processing, ready_to_assemble, assembling, completed, failed
+            'clips': clips_data,
+            'bucket_name': bucket_name,
+            'created_at': datetime.utcnow(),
+            'updated_at': datetime.utcnow()
+        })
+        
+        print(f"\n📝 Document video_status créé pour {video_base_name}")
+        print(f"   Total clips: {len(scenes)}")
+        print(f"   Status: processing")
             
     except Exception as e:
         print(f"❌ Erreur lors du lancement de la génération vidéo : {e}")

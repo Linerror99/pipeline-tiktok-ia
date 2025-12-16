@@ -1,12 +1,14 @@
 import functions_framework
-from google.cloud import storage
+from google.cloud import storage, firestore
 import subprocess
 import tempfile
 from pathlib import Path
 import whisper
 import os
+from datetime import datetime, timedelta
 
 storage_client = storage.Client()
+firestore_client = firestore.Client()
 
 # Variable globale pour le modèle Whisper (chargé une seule fois)
 WHISPER_MODEL = None
@@ -121,35 +123,43 @@ def format_timestamp_ass(seconds):
     centisecs = int((seconds % 1) * 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centisecs:02d}"
 
-@functions_framework.cloud_event
-def assemble_video(cloudevent):
+@functions_framework.http
+def assemble_video(request):
     """
-    Agent Assembleur avec Whisper
+    Agent Assembleur avec Whisper - Déclenché par HTTP
+    Reçoit: {"video_id": "theme_123456"}
     """
-    data = cloudevent.data
-    bucket_name = data["bucket"]
-    file_name = data["name"]
-
-    print(f"🎬 Déclencheur reçu pour : {file_name}")
-
-    if not file_name.startswith("video_clips/") or not file_name.endswith(".mp4"):
-        print(f"❌ Fichier ignoré : {file_name}")
-        return "OK"
-
-    parts = file_name.split("/")
-    if len(parts) < 3:
-        print("❌ Structure invalide")
-        return "OK"
+    # Récupérer le video_id depuis la requête
+    request_json = request.get_json(silent=True)
     
-    video_base_name = parts[1]
-    print(f"📹 Clip détecté : {video_base_name}")
+    if not request_json or 'video_id' not in request_json:
+        return {"error": "Missing video_id in request body"}, 400
+    
+    video_base_name = request_json['video_id']
+    
+    print(f"🎬 Assemblage déclenché pour : {video_base_name}")
+    
+    # Récupérer les infos depuis Firestore
+    video_status_doc = firestore_client.collection('video_status').document(video_base_name).get()
+    
+    if not video_status_doc.exists:
+        print(f"❌ Document video_status non trouvé pour {video_base_name}")
+        return {"error": "Video status not found"}, 404
+    
+    video_status = video_status_doc.to_dict()
+    bucket_name = video_status.get('bucket_name', f'tiktok-pipeline-artifacts-{os.environ.get("GCP_PROJECT")}')
+    clips = video_status['clips']
+    
+    print(f"📊 Status vidéo: {video_status['status']}")
+    print(f"📊 Clips attendus: {video_status['total_clips']}")
+    print(f"� Clips complétés: {video_status['completed_clips']}")
 
     bucket = storage_client.bucket(bucket_name)
     prefix = f"video_clips/{video_base_name}/"
     blobs = list(bucket.list_blobs(prefix=prefix))
     
     video_clips = sorted([b.name for b in blobs if b.name.endswith(".mp4")])
-    print(f"📊 Clips trouvés : {len(video_clips)}")
+    print(f"📊 Clips trouvés dans GCS : {len(video_clips)}")
 
     # Lire le script
     script_file_name = f"script_{video_base_name}.txt"
@@ -157,25 +167,21 @@ def assemble_video(cloudevent):
         script_blob = bucket.blob(script_file_name)
         if not script_blob.exists():
             print(f"❌ Script non trouvé")
-            return "OK"
+            return {"error": "Script not found"}, 404
         script_content = script_blob.download_as_text(encoding="utf-8")
     except Exception as e:
         print(f"❌ Erreur script : {e}")
-        return "OK"
+        return {"error": f"Script error: {str(e)}"}, 500
 
     expected_clips = script_content.upper().count("VISUEL")
-    print(f"🎯 Clips attendus : {expected_clips}")
-
-    if len(video_clips) < expected_clips:
-        print(f"⏳ Attente de {expected_clips - len(video_clips)} clips")
-        return "OK"
+    print(f"🎯 Clips attendus (depuis script) : {expected_clips}")
 
     # Vérifier si déjà assemblé
     final_video_name = f"final_{video_base_name}.mp4"
     final_blob = bucket.blob(final_video_name)
     if final_blob.exists():
         print(f"✅ Vidéo finale existe déjà")
-        return "OK"
+        return {"status": "already_exists", "video_id": video_base_name}, 200
 
     print("🎉 Lancement de l'assemblage avec Whisper...")
 
@@ -264,10 +270,33 @@ def assemble_video(cloudevent):
 
         try:
             final_blob.upload_from_filename(str(final_video), content_type="video/mp4")
-            print(f"✅ SUCCÈS ! gs://{bucket_name}/{final_video_name}")
+            final_video_url = f"gs://{bucket_name}/{final_video_name}"
+            print(f"✅ SUCCÈS ! {final_video_url}")
+            
+            # Mettre à jour Firestore : status = completed
+            firestore_client.collection('video_status').document(video_base_name).update({
+                'status': 'completed',
+                'final_video_url': final_video_url,
+                'updated_at': datetime.utcnow()
+            })
+            print(f"📝 Firestore mis à jour : status=completed")
+            
         except Exception as e:
             print(f"❌ Erreur upload : {e}")
-            return "Error"
+            
+            # Mettre à jour Firestore : status = failed
+            firestore_client.collection('video_status').document(video_base_name).update({
+                'status': 'failed',
+                'error': str(e),
+                'updated_at': datetime.utcnow()
+            })
+            
+            return {"error": f"Upload error: {str(e)}"}, 500
 
     print(f"🎉 ASSEMBLAGE WHISPER TERMINÉ !")
-    return "OK"
+    
+    return {
+        "status": "success",
+        "video_id": video_base_name,
+        "final_video_url": f"gs://{bucket_name}/{final_video_name}"
+    }, 200

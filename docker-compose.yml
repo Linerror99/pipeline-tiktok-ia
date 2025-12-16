@@ -13,7 +13,11 @@ services:
       - PROJECT_ID=${PROJECT_ID:-pipeline-video-ia}
       - BUCKET_NAME=${BUCKET_NAME:-tiktok-pipeline-artifacts-pipeline-video-ia}
       - REGION=${REGION:-us-central1}
-      - SCRIPT_AGENT_URL=${SCRIPT_AGENT_URL}
+      - SCRIPT_AGENT_URL=${SCRIPT_AGENT_URL:-https://us-central1-pipeline-video-ia.cloudfunctions.net/generate-script-agent}
+      - ACCESS_CODE_FUNCTION_URL=${ACCESS_CODE_FUNCTION_URL:-https://rotate-access-code-5ranhgrf2q-uc.a.run.app/}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-secret-key-change-in-production-min-32-characters}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRE_DAYS=${JWT_EXPIRE_DAYS:-7}
       - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
     volumes:
       - ./backend:/app

@@ -48,16 +48,9 @@ async def verify_code(request: VerifyCodeRequest):
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(request: RegisterRequest):
     """
-    Inscription d'un nouvel utilisateur
+    Inscription d'un nouvel utilisateur (pas de vérification de code ici)
     """
-    # 1. Vérifier le code d'accès
-    if not verify_access_code(request.access_code):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Code d'accès invalide"
-        )
-    
-    # 2. Vérifier si l'email existe déjà
+    # 1. Vérifier si l'email existe déjà
     existing_user = get_user_by_email(request.email)
     if existing_user:
         raise HTTPException(
@@ -65,7 +58,7 @@ async def register(request: RegisterRequest):
             detail="Un compte existe déjà avec cet email"
         )
     
-    # 3. Créer l'utilisateur
+    # 2. Créer l'utilisateur
     password_hashed = hash_password(request.password)
     new_user = create_user(request.email, password_hashed, is_admin=False)
     
@@ -75,10 +68,10 @@ async def register(request: RegisterRequest):
             detail="Erreur lors de la création du compte"
         )
     
-    # 4. Mettre à jour la date de connexion
+    # 3. Mettre à jour la date de connexion
     update_last_login(new_user.id)
     
-    # 5. Créer le token JWT
+    # 4. Créer le token JWT
     access_token = create_access_token(new_user)
     
     return TokenResponse(
