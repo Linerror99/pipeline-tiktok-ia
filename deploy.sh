@@ -11,7 +11,7 @@ FRONTEND_SA="pipeline-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Variables d'environnement pour le backend
 BUCKET_NAME="tiktok-pipeline-artifacts-pipeline-video-ia"
-SCRIPT_AGENT_URL="" # À remplir avec l'URL de votre Cloud Function
+SCRIPT_AGENT_URL="https://us-central1-pipeline-video-ia.cloudfunctions.net/generate-script-agent" # URL de l'agent de génération de script
 
 # Couleurs
 GREEN='\033[0;32m'

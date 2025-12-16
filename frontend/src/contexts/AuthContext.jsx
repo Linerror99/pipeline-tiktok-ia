@@ -35,19 +35,11 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyCode = async (code) => {
-    // Use /api as default path so nginx proxy forwards to backend
-    const apiUrl = import.meta.env.VITE_API_URL || '/api';
-    const response = await axios.post(`${apiUrl}/auth/verify-code`, { code });
-    return response.data;
-  };
-
-  const register = async (email, password, accessCode) => {
+  const register = async (email, password) => {
     const apiUrl = import.meta.env.VITE_API_URL || '/api';
     const response = await axios.post(`${apiUrl}/auth/register`, {
       email,
-      password,
-      access_code: accessCode
+      password
     });
     
     const { access_token, user: userData } = response.data;
@@ -89,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     token,
     loading,
     isAuthenticated: !!user,
-    verifyCode,
     register,
     login,
     logout,

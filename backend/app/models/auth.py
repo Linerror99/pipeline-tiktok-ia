@@ -10,7 +10,6 @@ class RegisterRequest(BaseModel):
     """Requête d'inscription"""
     email: EmailStr
     password: str = Field(..., min_length=8, description="Minimum 8 caractères")
-    access_code: str = Field(..., min_length=8, max_length=8, description="Code d'accès actuel")
 
 
 class LoginRequest(BaseModel):
