@@ -12,8 +12,11 @@ RUN npm ci
 # Copier le reste du code
 COPY . .
 
-# Copier le fichier d'environnement Docker (utilise backend:8000)
-COPY .env.docker .env
+# Argument pour choisir le fichier d'environnement
+ARG ENV_FILE=.env.production
+
+# Copier le fichier d'environnement approprié
+RUN if [ -f "${ENV_FILE}" ]; then cp "${ENV_FILE}" .env; else echo "Warning: ${ENV_FILE} not found, using defaults"; fi
 
 # Build de l'application
 RUN npm run build

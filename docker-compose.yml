@@ -32,6 +32,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        ENV_FILE: .env.docker  # Use local backend for Docker Compose
     container_name: pipeline-frontend
     ports:
       - "80:80"
