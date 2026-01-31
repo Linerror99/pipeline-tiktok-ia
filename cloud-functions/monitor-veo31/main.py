@@ -6,11 +6,16 @@ lance les extensions (blocs suivants) et déclenche l'assemblage final
 Déclenchée par Cloud Scheduler toutes les minutes
 """
 import functions_framework
-from google.cloud import storage, firestore, aiplatform
-from google.cloud.aiplatform_v1beta1 import types as aiplatform_types
+from google.cloud import storage, firestore
+from google import genai
+from google.genai import types
+from google.auth.transport.requests import Request
+from google.auth import default
 import os
 import requests
 import urllib.request
+import time
+import json
 from datetime import datetime
 
 storage_client = storage.Client()
@@ -21,8 +26,8 @@ LOCATION = "us-central1"
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
 AGENT_ASSEMBLER_URL = os.environ.get("AGENT_ASSEMBLER_URL", "")
 
-# Initialiser Vertex AI
-aiplatform.init(project=PROJECT_ID, location=LOCATION)
+# Client Gemini API pour Veo 3.1 via Vertex AI
+genai_client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
 @functions_framework.http
 def monitor_veo31_operations(request):
@@ -70,15 +75,42 @@ def monitor_veo31_operations(request):
             
             # Vérifier status operation
             operation_name = op_data['operation_name']
-            operation = aiplatform.Operation(operation_name)
             
-            if operation.done:
-                if operation.error:
-                    print(f"   ❌ Erreur: {operation.error.message}")
-                    handle_veo_failure(video_id, op_data, operation.error.message)
+            print(f"   🔍 Operation: {operation_name[:100]}...")
+            
+            # Créer objet operation depuis le nom stocké
+            # Selon la documentation Veo 3.1 officielle
+            try:
+                operation = types.GenerateVideosOperation(name=operation_name)
+                
+                # Récupérer le status actuel
+                operation = genai_client.operations.get(operation)
+                
+                op_obj = operation
+                
+            except Exception as get_err:
+                print(f"   ❌ Erreur récupération opération: {get_err}")
+                import traceback
+                traceback.print_exc()
+                
+                # Si 404 ou similaire, marquer comme expirée
+                if "404" in str(get_err) or "not found" in str(get_err).lower():
+                    handle_veo_failure(video_id, op_data, "Opération expirée ou introuvable")
+                continue
+            
+            # Vérifier si terminée
+            done = op_obj.done if hasattr(op_obj, 'done') else False
+            
+            if done:
+                # Vérifier si erreur
+                if hasattr(op_obj, 'error') and op_obj.error:
+                    error_msg = str(op_obj.error)
+                    print(f"   ❌ Erreur: {error_msg}")
+                    handle_veo_failure(video_id, op_data, error_msg)
                 else:
                     print(f"   ✅ Terminé !")
-                    handle_veo_success(video_id, op_data, operation)
+                    # Récupérer le résultat
+                    handle_veo_success(video_id, op_data, op_obj)
                 
                 processed_count += 1
             else:
@@ -100,7 +132,7 @@ def monitor_veo31_operations(request):
     }, 200
 
 
-def handle_veo_success(video_id, op_data, operation):
+def handle_veo_success(video_id, op_data, op_obj):
     """Opération réussie → Télécharger et lancer bloc suivant ou assembler"""
     
     current_block = op_data['current_block']
@@ -110,37 +142,77 @@ def handle_veo_success(video_id, op_data, operation):
     print(f"\n   📥 Traitement bloc {current_block}...")
     
     try:
-        # Récupérer la vidéo générée
-        result = operation.result
-        
-        if not result.generated_videos:
-            print(f"   ❌ Aucune vidéo générée")
-            handle_veo_failure(video_id, op_data, "Aucune vidéo générée")
+        # Récupérer depuis response
+        # Selon la documentation Veo 3.1: operation.response.generated_videos
+        if not hasattr(op_obj, 'response') or not op_obj.response:
+            print(f"   ❌ Pas de réponse dans l'opération")
+            # Vérifier si erreur cachée
+            if hasattr(op_obj, 'error') and op_obj.error:
+                print(f"   ❌ Erreur détectée: {op_obj.error}")
+                handle_veo_failure(video_id, op_data, str(op_obj.error))
+            else:
+                handle_veo_failure(video_id, op_data, "Aucune réponse dans l'opération")
             return
         
-        video_uri = result.generated_videos[0].video.uri
-        print(f"   📍 URI vidéo: {video_uri}")
+        response = op_obj.response
         
-        # Télécharger la vidéo
-        bucket = storage_client.bucket(BUCKET_NAME)
-        video_blob = bucket.blob(f'{video_id}/block_{current_block}.mp4')
+        # Les vidéos sont dans response.generated_videos (selon doc officielle)
+        if not hasattr(response, 'generated_videos') or not response.generated_videos or len(response.generated_videos) == 0:
+            print(f"   ❌ Aucune vidéo générée")
+            print(f"   📊 Response debug: {dir(response)}")
+            handle_veo_failure(video_id, op_data, "Aucune vidéo dans la réponse")
+            return
         
-        # Download depuis URI Vertex AI
-        local_path = f'/tmp/{video_id}_block_{current_block}.mp4'
-        urllib.request.urlretrieve(video_uri, local_path)
+        # L'URI de la vidéo - selon doc: generated_videos[0].video
+        generated_video = response.generated_videos[0]
         
-        # Upload vers Cloud Storage
-        video_blob.upload_from_filename(local_path)
+        # Le fichier vidéo est dans generated_video.video
+        if not hasattr(generated_video, 'video') or not generated_video.video:
+            print(f"   ❌ Pas de fichier vidéo")
+            handle_veo_failure(video_id, op_data, "Pas de fichier vidéo dans la réponse")
+            return
         
-        # Nettoyer fichier local
-        os.remove(local_path)
+        video_file = generated_video.video
         
-        print(f"   ✅ Bloc {current_block} sauvegardé: gs://{BUCKET_NAME}/{video_id}/block_{current_block}.mp4")
+        print(f"   📍 Fichier vidéo détecté !")
+        
+        # STRATÉGIE : Ne télécharger QUE le dernier bloc (pour assemblage)
+        # Les blocs intermédiaires sont conservés comme référence pour extensions
+        # (accéder aux video_bytes "hydrate" l'objet → trop lourd pour l'API)
+        
+        if current_block == total_blocks:
+            # Dernier bloc : télécharger et sauvegarder pour assemblage
+            local_path = f'/tmp/{video_id}_block_{current_block}.mp4'
+            
+            if hasattr(video_file, 'video_bytes') and video_file.video_bytes:
+                with open(local_path, 'wb') as f:
+                    f.write(video_file.video_bytes)
+                print(f"   ✅ Vidéo écrite depuis video_bytes: {len(video_file.video_bytes)} octets")
+            elif hasattr(video_file, 'save'):
+                video_file.save(local_path)
+                print(f"   ✅ Vidéo sauvegardée via save()")
+            else:
+                video_bytes = bytes(video_file) if not isinstance(video_file, bytes) else video_file
+                with open(local_path, 'wb') as f:
+                    f.write(video_bytes)
+                print(f"   ✅ Vidéo écrite via conversion: {len(video_bytes)} octets")
+            
+            # Upload vers Cloud Storage
+            bucket = storage_client.bucket(BUCKET_NAME)
+            video_blob = bucket.blob(f'{video_id}/block_{current_block}.mp4')
+            video_blob.upload_from_filename(local_path)
+            os.remove(local_path)
+            
+            print(f"   ✅ Bloc {current_block} sauvegardé: gs://{BUCKET_NAME}/{video_id}/block_{current_block}.mp4")
+        else:
+            # Bloc intermédiaire : NE PAS télécharger (gardé en référence pour extension)
+            print(f"   ⏭️  Bloc {current_block} généré, référence conservée pour extension (non téléchargé)")
         
         # Si blocs restants → Lancer extension
         if current_block < total_blocks:
             next_block = current_block + 1
-            launch_extension(video_id, op_data, next_block, video_uri)
+            # Passer generated_video.video AVANT tout accès aux bytes
+            launch_extension(video_id, op_data, next_block, generated_video.video)
         else:
             # Tous blocs terminés → Déclencher assemblage
             print(f"\n   🎉 Tous les blocs terminés ({total_blocks}/{total_blocks})")
@@ -153,7 +225,7 @@ def handle_veo_success(video_id, op_data, operation):
         handle_veo_failure(video_id, op_data, str(e))
 
 
-def launch_extension(video_id, op_data, next_block, previous_video_uri):
+def launch_extension(video_id, op_data, next_block, previous_video_file):
     """Lance la génération du bloc suivant (extension)"""
     
     blocks = op_data['blocks']
@@ -164,23 +236,24 @@ def launch_extension(video_id, op_data, next_block, previous_video_uri):
     print(f"      Durée: {block_data['duration']}s")
     
     try:
-        # Construire prompt
+        # Construire prompt pour extension
         visual_prompt = block_data['visuel']
         dialogue = block_data['dialogue']
-        full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
+        full_prompt = f"{visual_prompt}\n\nDialogue: \"{dialogue}\""
         
-        # Générer extension
-        model = aiplatform.preview.GenerativeModel("veo-3.1-fast")
+        # Utiliser directement l'objet video_file du bloc précédent
+        print(f"   📤 Utilisation de l'objet vidéo précédent...")
         
-        operation = model.generate_videos(
+        # Lancer l'extension avec l'objet vidéo
+        operation = genai_client.models.generate_videos(
+            model="veo-3.1-generate-preview",
             prompt=full_prompt,
-            video=aiplatform_types.Video(uri=previous_video_uri),  # Extension depuis vidéo précédente
-            config=aiplatform_types.GenerateVideosConfig(
-                duration_seconds=7,  # Extensions = 7s
+            video=previous_video_file,  # Objet vidéo du bloc précédent
+            config=types.GenerateVideosConfig(
+                duration_seconds=8,
                 resolution="720p",
                 aspect_ratio="9:16",
-                generate_audio=True,
-                sample_count=1
+                person_generation="allow_all"
             )
         )
         
@@ -209,9 +282,12 @@ def launch_extension(video_id, op_data, next_block, previous_video_uri):
 
 
 def trigger_assembly(video_id):
-    """Déclenche l'assemblage final de tous les blocs"""
+    """
+    Prépare l'assemblage final.
+    L'upload de block_N.mp4 déclenchera automatiquement agent-assembler-v2 (Cloud Storage trigger)
+    """
     
-    print(f"\n   🎬 Déclenchement assemblage...")
+    print(f"\n   🎬 Préparation assemblage...")
     
     try:
         # Update Firestore
@@ -226,23 +302,10 @@ def trigger_assembly(video_id):
             'updated_at': firestore.SERVER_TIMESTAMP
         })
         
-        # Appeler agent-assembler V2
-        if AGENT_ASSEMBLER_URL:
-            response = requests.post(
-                AGENT_ASSEMBLER_URL,
-                json={'video_id': video_id},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                print(f"   ✅ Assembleur appelé avec succès")
-            else:
-                print(f"   ⚠️ Erreur appel assembleur: {response.status_code}")
-        else:
-            print(f"   ⚠️ AGENT_ASSEMBLER_URL non configuré")
+        print(f"   ✅ Firestore updated - block_N.mp4 déclenchera agent-assembler automatiquement")
         
     except Exception as e:
-        print(f"   ❌ Erreur déclenchement assemblage: {e}")
+        print(f"   ❌ Erreur préparation assemblage: {e}")
         import traceback
         traceback.print_exc()
 
@@ -269,38 +332,35 @@ def handle_veo_failure(video_id, op_data, error_message):
             dialogue = block_data['dialogue']
             full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
             
-            # Relancer génération
-            model = aiplatform.preview.GenerativeModel("veo-3.1-fast")
-            
-            # Si bloc 1, pas de vidéo source
+            # Si bloc 1, génération initiale
             if current_block == 1:
-                operation = model.generate_videos(
+                operation = genai_client.models.generate_videos(
+                    model="veo-3.1-generate-preview",
                     prompt=full_prompt,
-                    config=aiplatform_types.GenerateVideosConfig(
-                        duration_seconds=8,
-                        resolution="720p",
+                    config=types.GenerateVideosConfig(
                         aspect_ratio="9:16",
-                        generate_audio=True,
-                        sample_count=1
+                        resolution="720p",
+                        duration_seconds=8,
+                        person_generation="allow_all"
                     )
                 )
             else:
-                # Extension - récupérer vidéo précédente
+                # Extension - utiliser vidéo précédente
                 bucket = storage_client.bucket(BUCKET_NAME)
                 prev_blob = bucket.blob(f'{video_id}/block_{current_block-1}.mp4')
                 
                 if prev_blob.exists():
                     prev_uri = f"gs://{BUCKET_NAME}/{video_id}/block_{current_block-1}.mp4"
                     
-                    operation = model.generate_videos(
+                    operation = genai_client.models.generate_videos(
+                        model="veo-3.1-generate-preview",
                         prompt=full_prompt,
-                        video=aiplatform_types.Video(uri=prev_uri),
-                        config=aiplatform_types.GenerateVideosConfig(
-                            duration_seconds=7,
+                        video=prev_uri,
+                        config=types.GenerateVideosConfig(
+                            duration_seconds=8,
                             resolution="720p",
                             aspect_ratio="9:16",
-                            generate_audio=True,
-                            sample_count=1
+                            person_generation="allow_all"
                         )
                     )
                 else:

@@ -1,6 +1,7 @@
 import functions_framework
-from google.cloud import storage, firestore, aiplatform
-from google.cloud.aiplatform_v1beta1 import types as aiplatform_types
+from google.cloud import storage, firestore
+from google import genai
+from google.genai import types
 import os
 import json
 from datetime import datetime
@@ -12,31 +13,41 @@ PROJECT_ID = os.environ.get("GCP_PROJECT", "pipeline-video-ia")
 LOCATION = "us-central1"
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
-# Initialiser Vertex AI
-aiplatform.init(project=PROJECT_ID, location=LOCATION)
+# Client Gemini API pour Veo 3.1 via Vertex AI
+genai_client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
-@functions_framework.http
-def generate_video_v2(request):
+@functions_framework.cloud_event
+def generate_video_v2(cloudevent):
     """
-    Cloud Function HTTP pour générer vidéo V2 avec Veo 3.1 Fast
+    Cloud Function déclenchée par upload de script_v2.json
+    Génère BLOC 1 (8s) avec Veo 3.1 Fast + audio natif
     
-    Génère uniquement BLOC 1 (8s) avec audio natif
-    Les extensions (blocs 2+) sont gérées par monitor-veo31
-    
-    Request JSON:
+    CloudEvent data:
     {
-        "video_id": "xxx",
-        "script_path": "gs://bucket/video_id/script_v2.json"  # optionnel
+        "bucket": "tiktok-pipeline-v2-artifacts",
+        "name": "{video_id}/script_v2.json"
     }
     """
-    request_json = request.get_json(silent=True)
-    
-    if not request_json or "video_id" not in request_json:
-        return {"error": "video_id manquant"}, 400
-    
-    video_id = request_json["video_id"]
-    
-    print(f"🎬 Génération Veo 3.1 Fast pour video_id: {video_id}")
+    try:
+        data = cloudevent.data
+        bucket_name = data["bucket"]
+        file_name = data["name"]
+        
+        print(f"📡 Déclencheur reçu pour le fichier : {file_name}")
+        
+        # Vérifier que c'est bien un script_v2.json
+        if not file_name.endswith("/script_v2.json"):
+            print(f"⚠️ Fichier non-script {file_name}. Traitement ignoré.")
+            return "OK"
+        
+        # Extraire video_id du path: {video_id}/script_v2.json
+        video_id = file_name.split("/")[0]
+        
+        print(f"🎬 Génération Veo 3.1 Fast pour video_id: {video_id}")
+        
+    except Exception as e:
+        print(f"❌ Erreur parsing CloudEvent: {e}")
+        return "ERROR"
     
     try:
         # Charger script V2
@@ -68,17 +79,15 @@ def generate_video_v2(request):
         print(f"   Visuel: {visual_prompt[:60]}...")
         print(f"   Dialogue: {dialogue[:60]}...")
         
-        # Appel Veo 3.1 Fast avec audio natif
-        model = aiplatform.preview.GenerativeModel("veo-3.1-fast")
-        
-        operation = model.generate_videos(
+        # Appel Veo 3.1 avec genai.Client() + audio natif
+        operation = genai_client.models.generate_videos(
+            model="veo-3.1-generate-preview",
             prompt=full_prompt,
-            config=aiplatform_types.GenerateVideosConfig(
-                duration_seconds=8,
-                resolution="720p",  # Cohérent avec extensions
+            config=types.GenerateVideosConfig(
                 aspect_ratio="9:16",
-                generate_audio=True,  # Audio natif !
-                sample_count=1
+                resolution="720p",
+                duration_seconds=8,
+                person_generation="allow_all"
             )
         )
         

@@ -6,12 +6,14 @@ import os
 import json
 import re
 import math
+import requests
 from datetime import datetime
 
 # --- Configuration ---
 PROJECT_ID = os.environ.get("GCP_PROJECT")
 LOCATION = "us-central1"
 BUCKET_NAME = os.environ.get("BUCKET_NAME")
+AGENT_VIDEO_URL = os.environ.get("AGENT_VIDEO_URL", "")
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 storage_client = storage.Client()
@@ -121,6 +123,7 @@ def generate_script(request):
         txt_blob.upload_from_string(script_content, content_type="text/plain")
         
         print(f"✅ Script sauvegardé dans gs://{BUCKET_NAME}/{video_id}/")
+        print(f"📡 Upload script_v2.json déclenchera automatiquement agent-video-v2 (Cloud Storage trigger)")
         
         # Update Firestore status
         update_firestore_status(video_id, "script_generated", {

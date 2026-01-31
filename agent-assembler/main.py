@@ -126,25 +126,39 @@ def format_timestamp_ass(seconds):
     centisecs = int((seconds % 1) * 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centisecs:02d}"
 
-@functions_framework.http
-def assemble_video(request):
+@functions_framework.cloud_event
+def assemble_video(cloudevent):
     """
-    Agent Assembleur V2 - Version simplifiée pour Veo 3.1
+    Cloud Function déclenchée par upload de block_N.mp4 (dernier bloc)
+    Ajoute sous-titres Whisper sur vidéo finale
     
-    Veo 3.1 retourne UNE SEULE vidéo finale (tous blocs déjà assemblés)
-    Plus besoin de concat ! Juste:
-    1. Extraire audio de la vidéo finale
-    2. Whisper sur audio
-    3. Sous-titres
-    
-    Reçoit: {"video_id": "xxx"}
+    CloudEvent data:
+    {
+        "bucket": "tiktok-pipeline-v2-artifacts",
+        "name": "{video_id}/block_N.mp4"
+    }
     """
-    request_json = request.get_json(silent=True)
-    
-    if not request_json or 'video_id' not in request_json:
-        return {"error": "Missing video_id in request body"}, 400
-    
-    video_id = request_json['video_id']
+    try:
+        data = cloudevent.data
+        bucket_name = data["bucket"]
+        file_name = data["name"]
+        
+        print(f"📡 Déclencheur reçu pour le fichier : {file_name}")
+        
+        # Vérifier que c'est bien un block_*.mp4 ET que c'est un déclenchement pour assembly
+        # (monitor-veo31 upload block_N.mp4 avec metadata assembly=true)
+        if not "/block_" in file_name or not file_name.endswith(".mp4"):
+            print(f"⚠️ Fichier non-block {file_name}. Traitement ignoré.")
+            return "OK"
+        
+        # Extraire video_id du path: {video_id}/block_N.mp4
+        video_id = file_name.split("/")[0]
+        
+        print(f"🎞️ Assemblage final pour video_id: {video_id}")
+        
+    except Exception as e:
+        print(f"❌ Erreur parsing CloudEvent: {e}")
+        return "ERROR"
     
     print("=" * 70)
     print(f"🎬 Assemblage V2 pour: {video_id}")
@@ -155,7 +169,8 @@ def assemble_video(request):
         op_doc = firestore_client.collection('v2_veo_operations').document(video_id).get()
         
         if not op_doc.exists:
-            return {"error": f"v2_veo_operations/{video_id} non trouvé"}, 404
+            print(f"❌ v2_veo_operations/{video_id} non trouvé")
+            return "ERROR"
         
         op_data = op_doc.to_dict()
         total_blocks = op_data['total_blocks']
