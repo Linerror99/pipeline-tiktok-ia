@@ -5,10 +5,13 @@ import tempfile
 from pathlib import Path
 import whisper
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 
 storage_client = storage.Client()
 firestore_client = firestore.Client()
+
+# Configuration V2
+BUCKET_NAME_V2 = os.environ.get("BUCKET_NAME_V2", "tiktok-pipeline-v2-artifacts")
 
 # Variable globale pour le modèle Whisper (chargé une seule fois)
 WHISPER_MODEL = None
@@ -126,28 +129,149 @@ def format_timestamp_ass(seconds):
 @functions_framework.http
 def assemble_video(request):
     """
-    Agent Assembleur avec Whisper - Déclenché par HTTP
-    Reçoit: {"video_id": "theme_123456"}
+    Agent Assembleur V2 - Version simplifiée pour Veo 3.1
+    
+    Veo 3.1 retourne UNE SEULE vidéo finale (tous blocs déjà assemblés)
+    Plus besoin de concat ! Juste:
+    1. Extraire audio de la vidéo finale
+    2. Whisper sur audio
+    3. Sous-titres
+    
+    Reçoit: {"video_id": "xxx"}
     """
-    # Récupérer le video_id depuis la requête
     request_json = request.get_json(silent=True)
     
     if not request_json or 'video_id' not in request_json:
         return {"error": "Missing video_id in request body"}, 400
     
-    video_base_name = request_json['video_id']
+    video_id = request_json['video_id']
     
-    print(f"🎬 Assemblage déclenché pour : {video_base_name}")
+    print("=" * 70)
+    print(f"🎬 Assemblage V2 pour: {video_id}")
+    print("=" * 70)
     
-    # Récupérer les infos depuis Firestore
-    video_status_doc = firestore_client.collection('video_status').document(video_base_name).get()
-    
-    if not video_status_doc.exists:
-        print(f"❌ Document video_status non trouvé pour {video_base_name}")
-        return {"error": "Video status not found"}, 404
-    
-    video_status = video_status_doc.to_dict()
-    bucket_name = video_status.get('bucket_name', f'tiktok-pipeline-artifacts-{os.environ.get("GCP_PROJECT")}')
+    try:
+        # Récupérer infos depuis Firestore
+        op_doc = firestore_client.collection('v2_veo_operations').document(video_id).get()
+        
+        if not op_doc.exists:
+            return {"error": f"v2_veo_operations/{video_id} non trouvé"}, 404
+        
+        op_data = op_doc.to_dict()
+        total_blocks = op_data['total_blocks']
+        
+        print(f"📊 Total blocs: {total_blocks}")
+        
+        # Récupérer LA vidéo finale (block_N.mp4 contient TOUS les blocs assemblés)
+        bucket = storage_client.bucket(BUCKET_NAME_V2)
+        final_block_blob = bucket.blob(f'{video_id}/block_{total_blocks}.mp4')
+        
+        if not final_block_blob.exists():
+            return {"error": f"Vidéo finale block_{total_blocks}.mp4 non trouvée"}, 404
+        
+        print(f"✅ Vidéo finale trouvée: block_{total_blocks}.mp4")
+        
+        # Créer répertoire temp
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Télécharger vidéo finale
+            final_video = tmpdir_path / "final_video.mp4"
+            final_block_blob.download_to_filename(str(final_video))
+            print(f"📥 Vidéo téléchargée: {final_video}")
+            
+            # 1. Extraire audio de la vidéo
+            audio_path = tmpdir_path / "audio.wav"
+            print("\n🎵 Extraction audio...")
+            subprocess.run([
+                'ffmpeg', '-i', str(final_video),
+                '-vn', '-acodec', 'pcm_s16le',
+                '-ar', '16000', '-ac', '1',
+                str(audio_path)
+            ], check=True, capture_output=True)
+            print("  ✓ Audio extrait")
+            
+            # 2. Whisper sur audio
+            print("\n🎙️ Transcription Whisper...")
+            ass_path = tmpdir_path / "subtitles.ass"
+            success = generate_whisper_subtitles(str(audio_path), str(ass_path))
+            
+            if not success:
+                return {"error": "Échec génération sous-titres Whisper"}, 500
+            
+            # 3. Ajouter sous-titres à la vidéo
+            final_with_subs = tmpdir_path / "final_with_subs.mp4"
+            print("\n📝 Ajout sous-titres...")
+            subprocess.run([
+                'ffmpeg', '-i', str(final_video),
+                '-vf', f"ass={ass_path}",
+                '-c:a', 'copy',
+                str(final_with_subs)
+            ], check=True, capture_output=True)
+            print("  ✓ Sous-titres ajoutés")
+            
+            # 4. Upload vidéo finale
+            final_blob = bucket.blob(f'{video_id}/final.mp4')
+            final_blob.upload_from_filename(str(final_with_subs))
+            public_url = f"gs://{BUCKET_NAME_V2}/{video_id}/final.mp4"
+            
+            print(f"\n✅ Vidéo finale uploadée: {public_url}")
+            
+            # 5. Update Firestore
+            firestore_client.collection('v2_veo_operations').document(video_id).update({
+                'status': 'completed',
+                'final_url': public_url,
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+            
+            firestore_client.collection('v2_video_status').document(video_id).update({
+                'status': 'completed',
+                'final_url': public_url,
+                'completed_at': firestore.SERVER_TIMESTAMP
+            })
+            
+            print("\n" + "=" * 70)
+            print(f"🎉 Assemblage V2 terminé !")
+            print("=" * 70)
+            
+            return {
+                "status": "success",
+                "video_id": video_id,
+                "final_url": public_url,
+                "total_blocks": total_blocks
+            }, 200
+            
+    except subprocess.CalledProcessError as e:
+        error_msg = f"Erreur FFmpeg: {e.stderr.decode() if e.stderr else str(e)}"
+        print(f"❌ {error_msg}")
+        mark_as_failed(video_id, error_msg)
+        return {"error": error_msg}, 500
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Erreur: {error_msg}")
+        import traceback
+        traceback.print_exc()
+        mark_as_failed(video_id, error_msg)
+        return {"error": error_msg}, 500
+
+
+def mark_as_failed(video_id, error_message):
+    """Marque la vidéo comme échouée"""
+    try:
+        firestore_client.collection('v2_veo_operations').document(video_id).update({
+            'status': 'failed',
+            'error_message': error_message,
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        
+        firestore_client.collection('v2_video_status').document(video_id).update({
+            'status': 'error',
+            'error_message': f'Assemblage échoué: {error_message}',
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+    except Exception as e:
+        print(f"⚠️ Erreur update Firestore: {e}")
     clips = video_status['clips']
     
     print(f"📊 Status vidéo: {video_status['status']}")
