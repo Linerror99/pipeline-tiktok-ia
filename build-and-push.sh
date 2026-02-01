@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
 REPOSITORY="pipeline-tiktok"
 

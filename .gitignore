@@ -49,3 +49,7 @@ credentials.json
 service-account.json
 *-credentials.json
 *.key.json
+/terraform/terraform.tfstate.1769945219.backup
+/terraform/terraform.tfstate.1769944115.backup
+/terraform/terraform.tfstate.1769943794.backup
+/terraform/terraform.tfstate.1769945481.backup

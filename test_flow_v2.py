@@ -14,9 +14,9 @@ import time
 from datetime import datetime
 
 # Configuration
-os.environ['GCP_PROJECT'] = 'pipeline-video-ia'
-os.environ['BUCKET_NAME'] = 'tiktok-pipeline-v2-artifacts'
-os.environ['BUCKET_NAME_V2'] = 'tiktok-pipeline-v2-artifacts'
+os.environ['GCP_PROJECT'] = 'reetik-project'
+os.environ['BUCKET_NAME'] = 'tiktok-pipeline-v2-artifacts-reetik-project'
+os.environ['BUCKET_NAME_V2'] = 'tiktok-pipeline-v2-artifacts-reetik-project'
 
 def test_flow_v2(theme, duration):
     """Test flow complet V2"""

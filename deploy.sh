@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Configuration
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
 REPOSITORY="pipeline-tiktok"
 
@@ -10,8 +10,8 @@ BACKEND_SA="pipeline-backend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 FRONTEND_SA="pipeline-frontend-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
 # Variables d'environnement pour le backend
-BUCKET_NAME="tiktok-pipeline-artifacts-pipeline-video-ia"
-SCRIPT_AGENT_URL="https://us-central1-pipeline-video-ia.cloudfunctions.net/generate-script-agent" # URL de l'agent de génération de script
+BUCKET_NAME="tiktok-pipeline-artifacts-reetik-project"
+SCRIPT_AGENT_URL="https://us-central1-reetik-project.cloudfunctions.net/generate-script-agent" # URL de l'agent de génération de script
 
 # Couleurs
 GREEN='\033[0;32m'

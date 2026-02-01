@@ -125,12 +125,14 @@ def retry_failed_clip(doc_data):
 @functions_framework.http
 def check_and_retry_clips(request):
     """
-    Fonction principale qui vérifie toutes les opérations V1 et V2
+    Fonction principale qui vérifie les opérations V2 (génération parallèle)
+    V1 désactivé - migration vers V2 uniquement
     """
-    print("🔍 Démarrage de la vérification des clips (V1 + V2)...")
+    print("🔍 Démarrage de la vérification des clips (V2 uniquement)...")
     
-    # === V1 : Opérations individuelles ===
-    v1_result = check_v1_operations()
+    # === V1 : Désactivé (migration vers V2) ===
+    # v1_result = check_v1_operations()
+    v1_result = {'checked': 0, 'retried': 0, 'status': 'disabled'}
     
     # === V2 : Génération parallèle ===
     v2_result = check_v2_parallel_operations()
@@ -138,8 +140,8 @@ def check_and_retry_clips(request):
     result = {
         'v1': v1_result,
         'v2': v2_result,
-        'total_checked': v1_result['checked'] + v2_result['checked'],
-        'total_retried': v1_result['retried'] + v2_result['retried']
+        'total_checked': v2_result['checked'],
+        'total_retried': v2_result['retried']
     }
     
     print(f"\n✅ Total: {result['total_checked']} vérifiés, {result['total_retried']} relancés")
@@ -233,11 +235,16 @@ def check_v2_parallel_operations():
     """Vérifie les opérations V2 (Veo 3.1 génération parallèle)"""
     print("\n🎬 V2: Vérification génération parallèle...")
     
-    operations = firestore_client.collection('v2_veo_operations')\
+    # Chercher les vidéos en cours de génération ET prêtes pour assemblage
+    generating_ops = firestore_client.collection('v2_veo_operations')\
         .where('status', '==', 'generating_parallel')\
         .stream()
     
-    operations_list = list(operations)
+    ready_ops = firestore_client.collection('v2_veo_operations')\
+        .where('status', '==', 'ready_for_assembly')\
+        .stream()
+    
+    operations_list = list(generating_ops) + list(ready_ops)
     
     if len(operations_list) == 0:
         print("  ✅ Aucune opération V2 en cours")
@@ -250,6 +257,15 @@ def check_v2_parallel_operations():
     for op_doc in operations_list:
         op_data = op_doc.to_dict()
         video_id = op_doc.id
+        current_status = op_data.get('status')
+        
+        # Si déjà ready_for_assembly, appeler directement l'assembleur
+        if current_status == 'ready_for_assembly':
+            print(f"  🎬 {video_id}: Prêt pour assemblage → Appel assembler")
+            trigger_v2_assembly(video_id)
+            assembled_count += 1
+            checked_count += 1
+            continue
         
         operations_dict = op_data.get('operations', {})
         clips_status = op_data.get('clips_status', {})

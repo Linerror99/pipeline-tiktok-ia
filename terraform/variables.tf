@@ -15,13 +15,8 @@ variable "environment" {
   default     = "prod"
 }
 
-variable "bucket_name_v1" {
-  description = "Bucket name for V1 artifacts"
-  type        = string
-}
-
 variable "bucket_name_v2" {
-  description = "Bucket name for V2 artifacts"
+  description = "Bucket name for V2 artifacts (Veo 3.1)"
   type        = string
 }
 

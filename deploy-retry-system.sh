@@ -5,9 +5,9 @@
 
 set -e  # Arrêter en cas d'erreur
 
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
-BUCKET_NAME="tiktok-pipeline-artifacts-pipeline-video-ia"
+BUCKET_NAME="tiktok-pipeline-artifacts-reetik-project"
 
 echo "🎯 Déploiement de l'architecture event-driven"
 echo "=============================================="

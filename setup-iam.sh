@@ -4,11 +4,11 @@
 # Ce script configure les service accounts et permissions nécessaires
 
 # Configuration
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
 BACKEND_SA="pipeline-backend-sa"
 FRONTEND_SA="pipeline-frontend-sa"
-BUCKET_NAME="tiktok-pipeline-artifacts-pipeline-video-ia"
+BUCKET_NAME="tiktok-pipeline-artifacts-reetik-project"
 
 # Couleurs
 GREEN='\033[0;32m'

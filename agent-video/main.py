@@ -107,12 +107,16 @@ def generate_video_v2(cloudevent):
         
         print(f"\n✅ {len(blocks)} générations lancées en parallèle !")
         
+        # Convertir les clés int en string pour Firestore
+        operations_str = {str(k): v for k, v in operations.items()}
+        clips_status_str = {str(k): v for k, v in clips_status.items()}
+        
         # Stocker dans Firestore pour monitoring
         firestore_client.collection('v2_veo_operations').document(video_id).set({
             'video_id': video_id,
             'script_file': f"{video_id}/script_v2.json",
-            'operations': operations,  # Dict {1: "op_name", 2: "op_name", ...}
-            'clips_status': clips_status,  # Dict {1: "generating", 2: "generating", ...}
+            'operations': operations_str,  # Dict {"1": "op_name", "2": "op_name", ...}
+            'clips_status': clips_status_str,  # Dict {"1": "generating", "2": "generating", ...}
             'status': 'generating_parallel',
             'total_blocks': len(blocks),
             'completed_blocks': 0,

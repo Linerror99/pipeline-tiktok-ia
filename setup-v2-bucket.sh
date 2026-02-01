@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 LOCATION="us-central1"
 BUCKET_V2="tiktok-pipeline-v2-artifacts"
 

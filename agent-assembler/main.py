@@ -326,39 +326,29 @@ def format_timestamp_ass(seconds):
     centisecs = int((seconds % 1) * 100)
     return f"{hours}:{minutes:02d}:{secs:02d}.{centisecs:02d}"
 
-@functions_framework.cloud_event
-def assemble_video(cloudevent):
+@functions_framework.http
+def assemble_video(request):
     """
-    Cloud Function déclenchée par upload de block_N.mp4 (dernier bloc)
-    Ajoute sous-titres Whisper sur vidéo finale
+    Cloud Function HTTP pour assembler la vidéo finale avec sous-titres
+    Appelée par check-and-retry-clips quand tous les blocs sont prêts
     
-    CloudEvent data:
+    Request JSON:
     {
-        "bucket": "tiktok-pipeline-v2-artifacts",
-        "name": "{video_id}/block_N.mp4"
+        "video_id": "test_20260201_123456"
     }
     """
     try:
-        data = cloudevent.data
-        bucket_name = data["bucket"]
-        file_name = data["name"]
+        request_json = request.get_json(silent=True)
+        if not request_json or 'video_id' not in request_json:
+            return {'error': 'Missing video_id in request'}, 400
         
-        print(f"📡 Déclencheur reçu pour le fichier : {file_name}")
+        video_id = request_json['video_id']
         
-        # Vérifier que c'est bien un block_*.mp4 ET que c'est un déclenchement pour assembly
-        # (monitor-veo31 upload block_N.mp4 avec metadata assembly=true)
-        if not "/block_" in file_name or not file_name.endswith(".mp4"):
-            print(f"⚠️ Fichier non-block {file_name}. Traitement ignoré.")
-            return "OK"
-        
-        # Extraire video_id du path: {video_id}/block_N.mp4
-        video_id = file_name.split("/")[0]
-        
-        print(f"🎞️ Assemblage final pour video_id: {video_id}")
+        print(f"🎬 Assemblage vidéo: {video_id}")
         
     except Exception as e:
-        print(f"❌ Erreur parsing CloudEvent: {e}")
-        return "ERROR"
+        print(f"❌ Erreur parsing request: {e}")
+        return {'error': str(e)}, 400
     
     print("=" * 70)
     print(f"🎬 Assemblage V2 pour: {video_id}")
@@ -427,7 +417,7 @@ def assemble_video(cloudevent):
             
             # 4. Upload vidéo finale
             final_blob = bucket.blob(f'{video_id}/final.mp4')
-            final_blob.upload_from_filename(str(final_output))
+            final_blob.upload_from_filename(str(final_with_subs))
             public_url = f"gs://{BUCKET_NAME_V2}/{video_id}/final.mp4"
             
             print(f"\n✅ Vidéo finale uploadée: {public_url}")
@@ -487,17 +477,7 @@ def mark_as_failed(video_id, error_message):
         })
     except Exception as e:
         print(f"⚠️ Erreur update Firestore: {e}")
-    clips = video_status['clips']
-    
-    print(f"📊 Status vidéo: {video_status['status']}")
-    print(f"📊 Clips attendus: {video_status['total_clips']}")
-    print(f"� Clips complétés: {video_status['completed_clips']}")
 
-    bucket = storage_client.bucket(bucket_name)
-    prefix = f"video_clips/{video_base_name}/"
-    blobs = list(bucket.list_blobs(prefix=prefix))
-    
-    video_clips = sorted([b.name for b in blobs if b.name.endswith(".mp4")])
     print(f"📊 Clips trouvés dans GCS : {len(video_clips)}")
 
     # Lire le script

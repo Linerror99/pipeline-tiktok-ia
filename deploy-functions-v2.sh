@@ -4,9 +4,9 @@
 
 set -e
 
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
-BUCKET_V2="tiktok-pipeline-v2-artifacts"
+BUCKET_V2="tiktok-pipeline-v2-artifacts-reetik-project"
 
 # Arguments: --skip-script pour sauter agent-script déjà déployé
 SKIP_SCRIPT=false
@@ -57,33 +57,34 @@ gcloud functions deploy agent-video-v2 \
     --entry-point=generate_video_v2 \
     --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
     --trigger-event-filters="bucket=${BUCKET_V2}" \
+    --trigger-location=${REGION} \
     --set-env-vars GCP_PROJECT=${PROJECT_ID},BUCKET_NAME=${BUCKET_V2} \
-    --memory=1GB \
+    --memory=2GB \
     --timeout=540s
 
 echo "  ✓ agent-video-v2 déployé (Storage trigger sur ${BUCKET_V2})"
 
-# 3. Déployer monitor-veo31 (HTTP - appelé par Cloud Scheduler)
+# 3. Déployer check-and-retry-clips (HTTP - appelé par Cloud Scheduler)
 echo ""
-echo "🔍 3/4 Déploiement monitor-veo31 (HTTP trigger)..."
+echo "🔍 3/5 Déploiement check-and-retry-clips (HTTP trigger)..."
 
-gcloud functions deploy monitor-veo31 \
+gcloud functions deploy check-and-retry-clips \
     --gen2 \
     --runtime=python312 \
     --region=${REGION} \
-    --source=./cloud-functions/monitor-veo31 \
-    --entry-point=monitor_veo31_operations \
+    --source=./cloud-functions/check-and-retry-clips \
+    --entry-point=check_and_retry_clips \
     --trigger-http \
     --allow-unauthenticated \
-    --set-env-vars GCP_PROJECT=${PROJECT_ID},BUCKET_NAME=${BUCKET_V2} \
+    --set-env-vars GCP_PROJECT=${PROJECT_ID},BUCKET_NAME_V2=${BUCKET_V2},AGENT_ASSEMBLER_URL=https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-assembler-v2 \
     --memory=1GB \
     --timeout=540s
 
-echo "  ✓ monitor-veo31 déployé (HTTP)"
+echo "  ✓ check-and-retry-clips déployé (HTTP)"
 
-# 4. Déployer agent-assembler V2 (Cloud Storage trigger - block_*.mp4)
+# 4. Déployer agent-assembler V2 (HTTP - appelé par check-and-retry-clips)
 echo ""
-echo "🎞️ 4/4 Déploiement agent-assembler V2 (Storage trigger)..."
+echo "🎞️ 4/5 Déploiement agent-assembler V2 (HTTP trigger)..."
 
 gcloud functions deploy agent-assembler-v2 \
     --gen2 \
@@ -91,40 +92,40 @@ gcloud functions deploy agent-assembler-v2 \
     --region=${REGION} \
     --source=./agent-assembler \
     --entry-point=assemble_video \
-    --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
-    --trigger-event-filters="bucket=${BUCKET_V2}" \
+    --trigger-http \
+    --allow-unauthenticated \
     --set-env-vars GCP_PROJECT=${PROJECT_ID},BUCKET_NAME_V2=${BUCKET_V2} \
     --memory=2GB \
     --timeout=540s
 
-echo "  ✓ agent-assembler-v2 déployé (Storage trigger sur ${BUCKET_V2})"
+echo "  ✓ agent-assembler-v2 déployé (HTTP)"
 
-# 5. Créer Cloud Scheduler pour monitor
+# 5. Créer Cloud Scheduler pour check-and-retry-clips
 echo ""
-echo "⏰ Configuration Cloud Scheduler..."
+echo "⏰ 5/5 Configuration Cloud Scheduler..."
 
-MONITOR_URL="https://${REGION}-${PROJECT_ID}.cloudfunctions.net/monitor-veo31"
+CHECK_RETRY_URL="https://${REGION}-${PROJECT_ID}.cloudfunctions.net/check-and-retry-clips"
 
 # Vérifier si le job existe
-if gcloud scheduler jobs describe monitor-veo31-scheduler --location=${REGION} 2>/dev/null; then
+if gcloud scheduler jobs describe check-and-retry-clips --location=${REGION} 2>/dev/null; then
     echo "  ⚠️  Job Cloud Scheduler existe déjà, mise à jour..."
-    gcloud scheduler jobs update http monitor-veo31-scheduler \
+    gcloud scheduler jobs update http check-and-retry-clips \
         --location=${REGION} \
-        --schedule="* * * * *" \
-        --uri="${MONITOR_URL}" \
+        --schedule="*/5 * * * *" \
+        --uri="${CHECK_RETRY_URL}" \
         --http-method=POST \
         --headers="Content-Type=application/json"
 else
     echo "  📅 Création job Cloud Scheduler..."
-    gcloud scheduler jobs create http monitor-veo31-scheduler \
+    gcloud scheduler jobs create http check-and-retry-clips \
         --location=${REGION} \
-        --schedule="* * * * *" \
-        --uri="${MONITOR_URL}" \
+        --schedule="*/5 * * * *" \
+        --uri="${CHECK_RETRY_URL}" \
         --http-method=POST \
         --headers="Content-Type=application/json"
 fi
 
-echo "  ✓ Cloud Scheduler configuré (1 minute)"
+echo "  ✓ Cloud Scheduler configuré (toutes les 5 minutes)"
 
 # Récapitulatif
 echo ""
@@ -133,14 +134,14 @@ echo "✅ Déploiement terminé !"
 echo "========================================="
 echo ""
 echo "URLs des Cloud Functions:"
-echo "  agent-script-v2:   https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-script-v2"
-echo "  agent-video-v2:    https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-video-v2"
-echo "  monitor-veo31:     https://${REGION}-${PROJECT_ID}.cloudfunctions.net/monitor-veo31"
-echo "  agent-assembler-v2: https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-assembler-v2"
+echo "  agent-script-v2:        https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-script-v2"
+echo "  agent-video-v2:         https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-video-v2"
+echo "  check-and-retry-clips:  https://${REGION}-${PROJECT_ID}.cloudfunctions.net/check-and-retry-clips"
+echo "  agent-assembler-v2:     https://${REGION}-${PROJECT_ID}.cloudfunctions.net/agent-assembler-v2"
 echo ""
 echo "Cloud Scheduler:"
-echo "  Job: monitor-veo31-scheduler (toutes les minutes)"
+echo "  Job: check-and-retry-clips (toutes les 5 minutes)"
 echo ""
 echo "Pour tester:"
-echo "  python test_flow_real_v2.py --theme 'Test V2' --duration 15"
+echo "  python test_flow_real_v2.py --theme 'Test V2' --duration 24"
 echo ""

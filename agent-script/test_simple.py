@@ -11,8 +11,8 @@ import vertexai
 from vertexai.generative_models import GenerativeModel
 
 # Configuration
-os.environ['GCP_PROJECT'] = 'pipeline-video-ia'
-PROJECT_ID = 'pipeline-video-ia'
+os.environ['GCP_PROJECT'] = 'reetik-project'
+PROJECT_ID = 'reetik-project'
 LOCATION = 'us-central1'
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
