@@ -367,23 +367,40 @@ def assemble_video(request):
         
         print(f"📊 Total blocs: {total_blocks}")
         
-        # Récupérer LA vidéo finale (block_N.mp4 contient TOUS les blocs assemblés)
+        # Télécharger TOUS les blocs individuels
         bucket = storage_client.bucket(BUCKET_NAME_V2)
-        final_block_blob = bucket.blob(f'{video_id}/block_{total_blocks}.mp4')
-        
-        if not final_block_blob.exists():
-            return {"error": f"Vidéo finale block_{total_blocks}.mp4 non trouvée"}, 404
-        
-        print(f"✅ Vidéo finale trouvée: block_{total_blocks}.mp4")
         
         # Créer répertoire temp
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir_path = Path(tmpdir)
             
-            # Télécharger vidéo finale
-            final_video = tmpdir_path / "final_video.mp4"
-            final_block_blob.download_to_filename(str(final_video))
-            print(f"📥 Vidéo téléchargée: {final_video}")
+            # 1. Télécharger tous les blocs
+            print(f"📥 Téléchargement des {total_blocks} blocs...")
+            block_files = []
+            for i in range(1, total_blocks + 1):
+                block_blob = bucket.blob(f'{video_id}/block_{i}.mp4')
+                if not block_blob.exists():
+                    return {"error": f"Bloc {i} non trouvé (block_{i}.mp4)"}, 404
+                
+                block_path = tmpdir_path / f"block_{i}.mp4"
+                block_blob.download_to_filename(str(block_path))
+                block_files.append(block_path)
+                print(f"  ✓ Bloc {i}/{total_blocks}")
+            
+            # 2. Concaténer les blocs avec FFmpeg
+            print(f"\n🎬 Concaténation de {total_blocks} blocs...")
+            concat_list = tmpdir_path / "concat_list.txt"
+            with open(concat_list, 'w') as f:
+                for block_file in block_files:
+                    f.write(f"file '{block_file.absolute()}'\n")
+            
+            final_video = tmpdir_path / "concatenated.mp4"
+            subprocess.run([
+                'ffmpeg', '-f', 'concat', '-safe', '0', 
+                '-i', str(concat_list),
+                '-c', 'copy', '-y', str(final_video)
+            ], check=True, capture_output=True)
+            print(f"  ✓ Vidéo concaténée: {final_video}")
             
             # 1. Extraire audio de la vidéo
             audio_path = tmpdir_path / "audio.wav"
