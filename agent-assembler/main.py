@@ -25,8 +25,208 @@ def get_whisper_model():
         print("  ✓ Modèle chargé")
     return WHISPER_MODEL
 
+def generate_whisper_subtitles_from_video(video_path, output_ass_path):
+    """
+    Génère des sous-titres Whisper DIRECTEMENT depuis la vidéo
+    (pas besoin d'extraction audio séparée)
+    """
+    print("🎙️ Transcription Whisper depuis vidéo...")
+    
+    try:
+        model = get_whisper_model()
+        
+        # Whisper peut transcrir directement depuis vidéo !
+        result = model.transcribe(
+            video_path,  # Accepte vidéo OU audio
+            language="fr",
+            word_timestamps=True,
+            verbose=False
+        )
+        
+        print(f"  ✓ Transcription terminée")
+        
+        # === En-tête ASS optimisé TikTok ===
+        ass_header = """[Script Info]
+Title: TikTok Whisper Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial Black,90,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,2,2,10,10,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+        ass_events = []
+        
+        # Extraire tous les mots
+        all_words = []
+        for segment in result["segments"]:
+            if "words" in segment:
+                for word_data in segment["words"]:
+                    all_words.append({
+                        "word": word_data["word"].strip(),
+                        "start": word_data["start"],
+                        "end": word_data["end"]
+                    })
+        
+        print(f"  ✓ {len(all_words)} mots extraits")
+        
+        if not all_words:
+            print("⚠️ Aucun mot détecté")
+            return False
+        
+        # Grouper par 2 mots
+        segment_size = 2
+        
+        for i in range(0, len(all_words), segment_size):
+            segment = all_words[i:i+segment_size]
+            
+            if not segment:
+                continue
+            
+            start_time = max(0, segment[0]['start'] - 0.05)
+            end_time = max(start_time + 0.1, segment[-1]['end'] - 0.05)
+            
+            text = " ".join([w['word'].upper() for w in segment])
+            
+            start_ass = format_ass_time(start_time)
+            end_ass = format_ass_time(end_time)
+            
+            ass_events.append(f"Dialogue: 0,{start_ass},{end_ass},Default,,0,0,0,,{text}")
+        
+        # Écrire fichier ASS
+        with open(output_ass_path, 'w', encoding='utf-8') as f:
+            f.write(ass_header)
+            f.write("\n".join(ass_events))
+        
+        print(f"  ✓ Fichier ASS créé: {len(ass_events)} sous-titres")
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ Erreur Whisper: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def format_ass_time(seconds):
+    """Convertit secondes en format ASS (0:00:00.00)"""
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    cs = int((seconds % 1) * 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
+
+def generate_whisper_subtitles_from_video(video_path, output_ass_path):
+    """
+    Génère des sous-titres Whisper DIRECTEMENT depuis la vidéo
+    (pas besoin d'extraction audio séparée)
+    """
+    print("🎙️ Transcription Whisper depuis vidéo...")
+    
+    try:
+        model = get_whisper_model()
+        
+        # Whisper peut transcrire directement depuis vidéo !
+        result = model.transcribe(
+            video_path,  # Accepte vidéo OU audio
+            language="fr",
+            word_timestamps=True,
+            verbose=False
+        )
+        
+        print(f"  ✓ Transcription terminée")
+        
+        # === En-tête ASS optimisé TikTok ===
+        ass_header = """[Script Info]
+Title: TikTok Whisper Subtitles
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial Black,90,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,6,2,2,10,10,80,1
+Style: Highlight,Arial Black,95,&H0000FFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,105,105,0,0,1,7,3,2,10,10,80,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+        ass_events = []
+        
+        # Extraire tous les mots
+        all_words = []
+        for segment in result["segments"]:
+            if "words" in segment:
+                for word_data in segment["words"]:
+                    all_words.append({
+                        "word": word_data["word"].strip(),
+                        "start": word_data["start"],
+                        "end": word_data["end"]
+                    })
+        
+        print(f"  ✓ {len(all_words)} mots extraits")
+        
+        if not all_words:
+            print("⚠️ Aucun mot détecté")
+            return False
+        
+        # Grouper par 2 mots pour lisibilité
+        segment_size = 2
+        
+        for i in range(0, len(all_words), segment_size):
+            segment = all_words[i:i+segment_size]
+            
+            if not segment:
+                continue
+            
+            start_time = segment[0]['start']
+            end_time = segment[-1]['end']
+            
+            # Petite avance de 50ms pour anticipation
+            start_time = max(0, start_time - 0.05)
+            end_time = max(start_time + 0.1, end_time - 0.05)
+            
+            # Texte en MAJUSCULES
+            text = " ".join([w['word'].upper() for w in segment])
+            
+            # Point de highlight (35% du temps)
+            highlight_point = start_time + (end_time - start_time) * 0.35
+            
+            start_ass = format_timestamp_ass(start_time)
+            highlight_ass = format_timestamp_ass(highlight_point)
+            end_ass = format_timestamp_ass(end_time)
+            
+            # Blanc → Jaune
+            ass_events.append(f"Dialogue: 0,{start_ass},{highlight_ass},Default,,0,0,0,,{text}")
+            ass_events.append(f"Dialogue: 0,{highlight_ass},{end_ass},Highlight,,0,0,0,,{text}")
+        
+        # Écrire le fichier ASS
+        with open(output_ass_path, 'w', encoding='utf-8') as f:
+            f.write(ass_header)
+            f.write("\n".join(ass_events))
+        
+        print(f"  ✓ {len(ass_events)} événements ASS générés avec Whisper")
+        return True
+        
+    except Exception as e:
+        print(f"  ❌ Erreur Whisper: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 def generate_whisper_subtitles(audio_path, output_ass_path):
     """
+    DEPRECATED - Utiliser generate_whisper_subtitles_from_video à la place
     Génère des sous-titres avec Whisper - Synchronisation PARFAITE
     """
     print("🎙️ Transcription avec Whisper (open-source)...")
@@ -227,7 +427,7 @@ def assemble_video(cloudevent):
             
             # 4. Upload vidéo finale
             final_blob = bucket.blob(f'{video_id}/final.mp4')
-            final_blob.upload_from_filename(str(final_with_subs))
+            final_blob.upload_from_filename(str(final_output))
             public_url = f"gs://{BUCKET_NAME_V2}/{video_id}/final.mp4"
             
             print(f"\n✅ Vidéo finale uploadée: {public_url}")

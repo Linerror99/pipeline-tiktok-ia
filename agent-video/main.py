@@ -65,52 +65,67 @@ def generate_video_v2(cloudevent):
         
         print(f"📝 Script chargé: {len(blocks)} blocs")
         
-        # Générer BLOC 1 uniquement (8s) avec audio natif
-        bloc_1 = blocks[0]
+        # Générer TOUS les blocs en parallèle
+        print(f"\n{'='*60}")
+        print(f"🎬 GÉNÉRATION DE {len(blocks)} BLOCS EN PARALLÈLE")
+        print(f"{'='*60}")
         
-        # Construire prompt avec dialogue pour audio natif
-        visual_prompt = bloc_1['visuel']
-        dialogue = bloc_1['dialogue']
+        operations = {}
+        clips_status = {}
         
-        # Prompt complet: visuel + audio
-        full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
-        
-        print(f"🎯 BLOC 1 (8s):")
-        print(f"   Visuel: {visual_prompt[:60]}...")
-        print(f"   Dialogue: {dialogue[:60]}...")
-        
-        # Appel Veo 3.1 avec genai.Client() + audio natif
-        operation = genai_client.models.generate_videos(
-            model="veo-3.1-generate-preview",
-            prompt=full_prompt,
-            config=types.GenerateVideosConfig(
-                aspect_ratio="9:16",
-                resolution="720p",
-                duration_seconds=8,
-                person_generation="allow_all"
+        for idx, block_data in enumerate(blocks, start=1):
+            print(f"\n🎥 BLOC {idx}/{len(blocks)}")
+            print(f"   Dialogue: {block_data['dialogue'][:80]}...")
+            print(f"   Durée: {block_data['duration']}s")
+            
+            # Construire prompt avec contexte de continuité si bloc > 1
+            visual_prompt = block_data['visuel']
+            dialogue = block_data['dialogue']
+            
+            if idx > 1:
+                # Ajouter contexte pour continuité narrative
+                full_prompt = f"Suite de la scène précédente. {visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
+            else:
+                full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
+            
+            # Générer avec Veo 3.1
+            operation = genai_client.models.generate_videos(
+                model="veo-3.1-generate-preview",
+                prompt=full_prompt,
+                config=types.GenerateVideosConfig(
+                    aspect_ratio="9:16",
+                    resolution="720p",
+                    duration_seconds=8,
+                    person_generation="allow_all"
+                )
             )
-        )
+            
+            operations[idx] = operation.name
+            clips_status[idx] = 'generating'
+            
+            print(f"   ✅ Génération lancée: {operation.name[:60]}...")
         
-        print(f"✅ Opération Veo lancée: {operation.name}")
+        print(f"\n✅ {len(blocks)} générations lancées en parallèle !")
         
-        # Enregistrer dans Firestore v2_veo_operations pour monitoring async
+        # Stocker dans Firestore pour monitoring
         firestore_client.collection('v2_veo_operations').document(video_id).set({
             'video_id': video_id,
-            'status': 'generating_block_1',
-            'operation_name': operation.name,
-            'blocks': blocks,
-            'current_block': 1,
+            'script_file': f"{video_id}/script_v2.json",
+            'operations': operations,  # Dict {1: "op_name", 2: "op_name", ...}
+            'clips_status': clips_status,  # Dict {1: "generating", 2: "generating", ...}
+            'status': 'generating_parallel',
             'total_blocks': len(blocks),
+            'completed_blocks': 0,
+            'blocks': blocks,
             'created_at': firestore.SERVER_TIMESTAMP,
             'updated_at': firestore.SERVER_TIMESTAMP,
-            'veo_version': '3.1-fast',
             'retry_count': 0
         })
         
         # Update v2_video_status
         firestore_client.collection('v2_video_status').document(video_id).update({
             'status': 'generating_video',
-            'current_step': 'bloc_1_generation',
+            'current_step': 'parallel_generation',
             'updated_at': firestore.SERVER_TIMESTAMP
         })
         
@@ -119,10 +134,9 @@ def generate_video_v2(cloudevent):
         return {
             "status": "success",
             "video_id": video_id,
-            "operation_name": operation.name,
-            "current_block": 1,
+            "operations_count": len(operations),
             "total_blocks": len(blocks),
-            "message": f"Génération BLOC 1 lancée (async)"
+            "message": f"Génération de {len(blocks)} blocs lancée en parallèle"
         }, 200
         
     except Exception as e:
