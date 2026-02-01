@@ -1,4 +1,4 @@
-from google.cloud import storage
+from google.cloud import storage, firestore
 from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 import re
@@ -6,38 +6,40 @@ from ..config import settings
 
 
 class StorageService:
-    """Service pour interagir avec Google Cloud Storage"""
+    """Service pour interagir avec Google Cloud Storage et Firestore V2"""
     
     def __init__(self):
-        self.client = storage.Client(project=settings.PROJECT_ID)
-        self.bucket = self.client.bucket(settings.BUCKET_NAME)
+        self.storage_client = storage.Client(project=settings.PROJECT_ID)
+        self.firestore_client = firestore.Client(project=settings.PROJECT_ID)
+        self.bucket = self.storage_client.bucket(settings.BUCKET_NAME_V2)
     
     def list_videos(self) -> List[Dict]:
-        """Liste toutes les vidéos finales générées"""
+        """Liste toutes les vidéos depuis Firestore v2_veo_operations"""
         videos = []
         
         try:
-            # Récupérer tous les fichiers final_*.mp4
-            blobs = self.bucket.list_blobs(prefix="final_")
+            # Récupérer depuis Firestore v2_veo_operations
+            docs = self.firestore_client.collection('v2_veo_operations').stream()
             
-            for blob in blobs:
-                if blob.name.endswith('.mp4'):
-                    # Extraire l'ID de la vidéo depuis le nom du fichier
-                    video_id = self._extract_video_id(blob.name)
-                    
-                    # Récupérer le script associé pour avoir le thème
-                    theme = self._get_theme_from_script(video_id)
-                    
-                    video_info = {
-                        "id": video_id,
-                        "theme": theme or "Thème inconnu",
-                        "status": "completed",
-                        "created_at": blob.time_created.isoformat() if blob.time_created else None,
-                        "video_url": blob.public_url,
-                        "thumbnail_url": None,  # TODO: Générer des thumbnails
-                        "duration": None,  # TODO: Extraire la durée de la vidéo
-                    }
-                    videos.append(video_info)
+            for doc in docs:
+                data = doc.to_dict()
+                
+                # Ignorer les vidéos sans statut ou non complétées
+                if not data or data.get('status') not in ['completed', 'ready_for_assembly', 'generating_parallel', 'failed']:
+                    continue
+                
+                video_info = {
+                    "id": doc.id,
+                    "theme": self._extract_theme_from_blocks(data.get('blocks', [])),
+                    "status": self._map_status(data.get('status')),
+                    "created_at": data.get('created_at').isoformat() if data.get('created_at') else None,
+                    "video_url": data.get('final_url'),
+                    "thumbnail_url": None,  # TODO: Générer thumbnails
+                    "duration": self._calculate_duration(data.get('total_blocks', 0)),
+                    "blocks_count": data.get('total_blocks', 0),
+                    "completed_blocks": data.get('completed_blocks', 0),
+                }
+                videos.append(video_info)
             
             # Trier par date de création (plus récent en premier)
             videos.sort(key=lambda x: x['created_at'] or '', reverse=True)
@@ -48,50 +50,143 @@ class StorageService:
         return videos
     
     def get_video_status(self, video_id: str) -> Dict:
-        """Récupère le statut d'une vidéo en cours de génération"""
-        status = {
-            "video_id": video_id,
-            "stage": "unknown",
-            "status": "processing",
-            "files": {}
-        }
-        
+        """Récupère le statut d'une vidéo depuis Firestore v2_video_status"""
         try:
-            # Vérifier l'existence des fichiers à chaque étape
-            script_blob = self.bucket.blob(f"script_{video_id}.txt")
-            audio_blob = self.bucket.blob(f"audio_{video_id}.mp3")
-            video_folder_prefix = f"video_clips/{video_id}/"
-            final_blob = self.bucket.blob(f"final_{video_id}.mp4")
+            # Récupérer depuis v2_video_status
+            doc = self.firestore_client.collection('v2_video_status').document(video_id).get()
             
-            if final_blob.exists():
-                status["stage"] = "completed"
-                status["status"] = "completed"
-                status["files"]["final"] = final_blob.public_url
-            elif list(self.bucket.list_blobs(prefix=video_folder_prefix, max_results=1)):
-                status["stage"] = "assembling"
-                status["status"] = "processing"
-            elif audio_blob.exists():
-                status["stage"] = "generating_video"
-                status["status"] = "processing"
-                status["files"]["audio"] = audio_blob.public_url
-            elif script_blob.exists():
-                status["stage"] = "generating_audio"
-                status["status"] = "processing"
-                status["files"]["script"] = script_blob.public_url
-            else:
-                status["stage"] = "generating_script"
-                status["status"] = "processing"
+            if not doc.exists:
+                # Fallback: chercher dans v2_veo_operations
+                op_doc = self.firestore_client.collection('v2_veo_operations').document(video_id).get()
+                if op_doc.exists:
+                    data = op_doc.to_dict()
+                    return self._build_status_from_operations(video_id, data)
+                
+                return {
+                    "video_id": video_id,
+                    "status": "not_found",
+                    "error": "Vidéo non trouvée"
+                }
+            
+            data = doc.to_dict()
+            status_info = {
+                "video_id": video_id,
+                "status": data.get('status', 'unknown'),
+                "current_step": data.get('current_step'),
+                "progress": self._calculate_progress(data),
+                "error_message": data.get('error_message'),
+                "created_at": data.get('created_at').isoformat() if data.get('created_at') else None,
+                "updated_at": data.get('updated_at').isoformat() if data.get('updated_at') else None,
+            }
+            
+            # Si complété, ajouter l'URL
+            if data.get('status') == 'completed':
+                op_doc = self.firestore_client.collection('v2_veo_operations').document(video_id).get()
+                if op_doc.exists:
+                    op_data = op_doc.to_dict()
+                    status_info['final_url'] = op_data.get('final_url')
+                    status_info['total_blocks'] = op_data.get('total_blocks', 0)
+                    status_info['completed_blocks'] = op_data.get('completed_blocks', 0)
+            
+            return status_info
         
         except Exception as e:
-            print(f"Erreur lors de la vérification du statut: {e}")
-            status["status"] = "error"
-            status["error"] = str(e)
+            print(f"Erreur lors de la récupération du statut: {e}")
+            return {
+                "video_id": video_id,
+                "status": "error",
+                "error": str(e)
+            }
+    
+    def _build_status_from_operations(self, video_id: str, data: Dict) -> Dict:
+        """Construit le statut depuis v2_veo_operations"""
+        status = data.get('status', 'unknown')
+        total_blocks = data.get('total_blocks', 0)
+        completed_blocks = data.get('completed_blocks', 0)
         
-        return status
+        return {
+            "video_id": video_id,
+            "status": status,
+            "current_step": self._get_current_step(status, completed_blocks, total_blocks),
+            "total_blocks": total_blocks,
+            "completed_blocks": completed_blocks,
+            "progress": int((completed_blocks / total_blocks * 100) if total_blocks > 0 else 0),
+            "final_url": data.get('final_url'),
+            "created_at": data.get('created_at').isoformat() if data.get('created_at') else None,
+            "updated_at": data.get('updated_at').isoformat() if data.get('updated_at') else None,
+        }
+    
+    def _map_status(self, firestore_status: str) -> str:
+        """Mappe les status Firestore vers status API"""
+        status_map = {
+            'script_generated': 'processing',
+            'generating_parallel': 'processing',
+            'ready_for_assembly': 'processing',
+            'completed': 'completed',
+            'failed': 'failed',
+            'error': 'failed'
+        }
+        return status_map.get(firestore_status, 'processing')
+    
+    def _get_current_step(self, status: str, completed: int, total: int) -> str:
+        """Génère message d'étape actuelle"""
+        if status == 'script_generated':
+            return "Script généré, lancement génération vidéos..."
+        elif status == 'generating_parallel':
+            return f"Génération vidéos ({completed}/{total} blocs)"
+        elif status == 'ready_for_assembly':
+            return "Assemblage en cours..."
+        elif status == 'completed':
+            return "Vidéo terminée"
+        elif status == 'failed' or status == 'error':
+            return "Erreur lors de la génération"
+        return "En cours..."
+    
+    def _calculate_progress(self, data: Dict) -> int:
+        """Calcule le pourcentage de progression"""
+        status = data.get('status')
+        
+        if status == 'completed':
+            return 100
+        elif status == 'failed' or status == 'error':
+            return 0
+        elif status == 'script_generated':
+            return 10
+        
+        # Pour génération parallèle, estimer sur base des blocs
+        total_blocks = data.get('total_blocks', 0)
+        completed_blocks = data.get('completed_blocks', 0)
+        
+        if total_blocks > 0:
+            # 10% pour script, 80% pour génération, 10% pour assemblage
+            block_progress = int((completed_blocks / total_blocks) * 80)
+            return 10 + block_progress
+        
+        return 20  # Défaut
+    
+    def _extract_theme_from_blocks(self, blocks: List[Dict]) -> str:
+        """Extrait un thème descriptif depuis les blocs"""
+        if not blocks:
+            return "Vidéo sans titre"
+        
+        # Prendre le dialogue du premier bloc
+        first_dialogue = blocks[0].get('dialogue', '') if blocks else ''
+        if len(first_dialogue) > 50:
+            return first_dialogue[:50] + "..."
+        return first_dialogue or "Vidéo sans titre"
+    
+    def _calculate_duration(self, total_blocks: int) -> int:
+        """Calcule la durée totale en secondes"""
+        if total_blocks == 0:
+            return 0
+        elif total_blocks == 1:
+            return 8
+        else:
+            return 8 + (total_blocks - 1) * 7
     
     def get_video_url(self, video_id: str, expiration_minutes: int = 60) -> Optional[str]:
         """
-        Génère une URL pour télécharger la vidéo
+        Génère une URL pour télécharger la vidéo V2
         
         Args:
             video_id: ID de la vidéo
@@ -101,37 +196,27 @@ class StorageService:
             URL ou None si la vidéo n'existe pas
         """
         try:
-            blob_name = f"final_{video_id}.mp4"
-            print(f"[get_video_url] Recherche du blob: {blob_name}")
+            # Format V2: {video_id}/final.mp4
+            blob_name = f"{video_id}/final.mp4"
             blob = self.bucket.blob(blob_name)
             
             if not blob.exists():
-                print(f"[get_video_url] Blob {blob_name} n'existe pas")
-                # Essayer de lister pour voir ce qui existe réellement
-                print(f"[get_video_url] Fichiers commençant par 'final_': ")
-                for b in self.bucket.list_blobs(prefix="final_", max_results=5):
-                    print(f"  - {b.name}")
+                print(f"[get_video_url] Vidéo V2 non trouvée: {blob_name}")
                 return None
                 
-            # Essayer d'abord avec URL signée (nécessite service account)
+            # Générer URL signée
             try:
                 url = blob.generate_signed_url(
                     version="v4",
                     expiration=timedelta(minutes=expiration_minutes),
                     method="GET",
-                    response_disposition=f'attachment; filename="video_{video_id}.mp4"'
+                    response_disposition=f'attachment; filename="{video_id}.mp4"'
                 )
                 return url
             except Exception as sign_error:
-                print(f"Impossible de générer URL signée, utilisation URL publique: {sign_error}")
-                # Fallback: rendre le blob public et retourner l'URL publique
-                try:
-                    blob.make_public()
-                    return blob.public_url
-                except Exception as public_error:
-                    print(f"Impossible de rendre public: {public_error}")
-                    # Dernier fallback: URL média Google Cloud Storage
-                    return f"https://storage.googleapis.com/{self.bucket.name}/{blob.name}"
+                print(f"Impossible de générer URL signée: {sign_error}")
+                # Fallback: URL publique
+                return f"https://storage.googleapis.com/{self.bucket.name}/{blob_name}"
         except Exception as e:
             print(f"Erreur lors de la récupération de l'URL: {e}")
         
@@ -148,8 +233,8 @@ class StorageService:
             URL pour streaming ou None si la vidéo n'existe pas
         """
         try:
-            blob_name = f"final_{video_id}.mp4"
-            print(f"[get_video_stream_url] Recherche du blob: {blob_name}")
+            # Format V2: {video_id}/final.mp4
+            blob_name = f"{video_id}/final.mp4"
             blob = self.bucket.blob(blob_name)
             
             if not blob.exists():

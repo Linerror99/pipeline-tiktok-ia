@@ -6,7 +6,8 @@ from typing import Optional
 class Settings(BaseSettings):
     # Google Cloud Configuration
     PROJECT_ID: str = "reetik-project"
-    BUCKET_NAME: str = "tiktok-pipeline-artifacts-reetik-project"
+    BUCKET_NAME: str = "tiktok-pipeline-artifacts-reetik-project"  # V1 (deprecated)
+    BUCKET_NAME_V2: str = "tiktok-pipeline-v2-artifacts-reetik-project"  # V2
     REGION: str = "us-central1"
     
     # Cloud Function URLs
