@@ -88,22 +88,52 @@ def generate_video_v2(cloudevent):
             else:
                 full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
             
-            # Générer avec Veo 3.1
-            operation = genai_client.models.generate_videos(
-                model="veo-3.1-generate-preview",
-                prompt=full_prompt,
-                config=types.GenerateVideosConfig(
-                    aspect_ratio="9:16",
-                    resolution="720p",
-                    duration_seconds=8,
-                    person_generation="allow_all"
+            # Générer avec Veo 3.1 (avec gestion des erreurs de safety)
+            try:
+                operation = genai_client.models.generate_videos(
+                    model="veo-3.1-generate-preview",
+                    prompt=full_prompt,
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio="9:16",
+                        resolution="720p",
+                        duration_seconds=8,
+                        person_generation="allow_all"
+                    )
                 )
-            )
-            
-            operations[idx] = operation.name
-            clips_status[idx] = 'generating'
-            
-            print(f"   ✅ Génération lancée: {operation.name[:60]}...")
+                
+                operations[idx] = operation.name
+                clips_status[idx] = 'generating'
+                
+                print(f"   ✅ Génération lancée: {operation.name[:60]}...")
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"   ❌ Bloc {idx} échoué: {error_msg}")
+                
+                # Si erreur de safety/guidelines, générer prompt générique de secours
+                if 'usage guidelines' in error_msg.lower() or 'third-party content' in error_msg.lower():
+                    print(f"   🔄 Tentative avec prompt générique...")
+                    fallback_prompt = f"Scène abstraite colorée avec des formes géométriques en mouvement sur fond uni. Style moderne et épuré. Durée: 8 secondes."
+                    
+                    try:
+                        operation = genai_client.models.generate_videos(
+                            model="veo-3.1-generate-preview",
+                            prompt=fallback_prompt,
+                            config=types.GenerateVideosConfig(
+                                aspect_ratio="9:16",
+                                resolution="720p",
+                                duration_seconds=8,
+                                person_generation="allow_all"
+                            )
+                        )
+                        operations[idx] = operation.name
+                        clips_status[idx] = 'generating'
+                        print(f"   ✅ Prompt de secours accepté")
+                    except Exception as e2:
+                        print(f"   ❌ Échec définitif bloc {idx}: {e2}")
+                        clips_status[idx] = 'failed'
+                else:
+                    clips_status[idx] = 'failed'
         
         print(f"\n✅ {len(blocks)} générations lancées en parallèle !")
         

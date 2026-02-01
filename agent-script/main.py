@@ -12,7 +12,7 @@ from datetime import datetime
 # --- Configuration ---
 PROJECT_ID = os.environ.get("GCP_PROJECT")
 LOCATION = "us-central1"
-BUCKET_NAME = os.environ.get("BUCKET_NAME")
+BUCKET_NAME = os.environ.get("BUCKET_NAME_V2") or os.environ.get("BUCKET_NAME")
 AGENT_VIDEO_URL = os.environ.get("AGENT_VIDEO_URL", "")
 
 vertexai.init(project=PROJECT_ID, location=LOCATION)
@@ -43,7 +43,7 @@ def generate_script(request):
     
     model = GenerativeModel("gemini-2.5-pro")
     
-    # Nouveau prompt format BLOCS
+    # Nouveau prompt format BLOCS avec SAFETY GUIDELINES
     prompt = f"""
     Tu es un scénariste expert pour des vidéos TikTok virales.
     Ta tâche est de créer un script captivant sur le thème : "{theme}".
@@ -72,6 +72,12 @@ def generate_script(request):
     - Ton captivant et éducatif
     - Transitions fluides entre blocs
     - PAS d'astérisques ** dans le dialogue
+
+    ⚠️ IMPORTANT - Respect des guidelines Vertex AI :
+    - Les descriptions VISUEL doivent respecter les règles de sécurité de Google Vertex AI
+    - Évite les contenus protégés par copyright (personnages de fiction, marques, logos)
+    - Évite les contenus sensibles (violence, etc.)
+    - OBLIGATOIRE : Scènes réalistes sans références copyrightées
 
     Génère maintenant le script pour : "{theme}"
     """
