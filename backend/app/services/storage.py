@@ -28,12 +28,26 @@ class StorageService:
                 if not data or data.get('status') not in ['completed', 'ready_for_assembly', 'generating_parallel', 'failed']:
                     continue
                 
+                # Générer URL signée pour vidéos complétées
+                stream_url = None
+                if data.get('status') == 'completed' and data.get('final_url'):
+                    # Vérifier si final_url est un path GCS (gs://) ou déjà une URL HTTP
+                    final_url_value = data.get('final_url')
+                    if final_url_value.startswith('gs://'):
+                        # Générer URL signée depuis le path GCS
+                        stream_url = self.get_video_stream_url(doc.id)
+                    else:
+                        # Déjà une URL HTTP
+                        stream_url = final_url_value
+                
                 video_info = {
                     "id": doc.id,
+                    "video_id": doc.id,  # Alias pour compatibilité frontend
                     "theme": self._extract_theme_from_blocks(data.get('blocks', [])),
                     "status": self._map_status(data.get('status')),
                     "created_at": data.get('created_at').isoformat() if data.get('created_at') else None,
-                    "video_url": data.get('final_url'),
+                    "video_url": stream_url,  # URL signée HTTP
+                    "stream_url": stream_url,  # Alias pour compatibilité
                     "thumbnail_url": None,  # TODO: Générer thumbnails
                     "duration": self._calculate_duration(data.get('total_blocks', 0)),
                     "blocks_count": data.get('total_blocks', 0),

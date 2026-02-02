@@ -160,7 +160,9 @@ export function LibraryPage() {
                 <div className="aspect-[9/16] relative overflow-hidden group cursor-pointer"
                      onClick={() => {
                        if (video.status === 'completed') {
-                         navigate(`/video/${video.video_id}`);
+                         navigate(`/video/${video.video_id}`, {
+                           state: { videoUrl: video.stream_url || video.video_url, theme: video.theme }
+                         });
                        } else if (video.status === 'processing') {
                          navigate(`/progress/${video.video_id}`);
                        }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -22,33 +22,29 @@ import { apiService } from '../services/api';
 export function VideoPlayerPage() {
   const navigate = useNavigate();
   const { videoId } = useParams<{ videoId: string }>();
+  const { state } = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [videoUrl, setVideoUrl] = useState<string | null>(state?.videoUrl || null);
+  const [isLoading, setIsLoading] = useState(!state?.videoUrl);
   const [error, setError] = useState<string | null>(null);
-  const [videoData, setVideoData] = useState<any>(null);
+  const [videoData, setVideoData] = useState<any>(state ? { theme: state.theme } : null);
 
   useEffect(() => {
-    if (!videoId) return;
+    // Si l'URL est déjà passée via state, pas besoin de charger
+    if (state?.videoUrl || !videoId) {
+      setIsLoading(false);
+      return;
+    }
     
     const loadVideo = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        // Get video status first
-        const status = await apiService.getVideoStatus(videoId);
-        setVideoData(status);
-        
-        if (status.status !== 'completed') {
-          setError('Video is not ready yet');
-          return;
-        }
-
-        // Get signed URL
+        // Fallback: charger l'URL si pas passée via state
         const url = await apiService.getVideoUrl(videoId);
         setVideoUrl(url);
       } catch (err: any) {
@@ -60,7 +56,7 @@ export function VideoPlayerPage() {
     };
 
     loadVideo();
-  }, [videoId]);
+  }, [videoId, state]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
