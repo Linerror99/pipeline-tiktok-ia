@@ -154,19 +154,19 @@ class ApiService {
   }
 
   async getVideoUrl(videoId: string): Promise<string> {
-    const response = await this.request<{ url: string }>(
+    const response = await this.request<{ download_url: string }>(
       `/videos/${videoId}/download`,
       { method: 'GET' }
     );
-    return response.url;
+    return response.download_url;
   }
 
   async getVideoStreamUrl(videoId: string): Promise<string> {
-    const response = await this.request<{ url: string }>(
+    const response = await this.request<{ stream_url: string }>(
       `/videos/${videoId}/stream`,
       { method: 'GET' }
     );
-    return response.url;
+    return response.stream_url;
   }
 
   async deleteVideo(videoId: string): Promise<void> {

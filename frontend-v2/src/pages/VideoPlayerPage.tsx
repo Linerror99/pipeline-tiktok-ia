@@ -76,21 +76,23 @@ export function VideoPlayerPage() {
   };
 
   const handleDownload = async () => {
-    if (!videoUrl || !videoId) return;
+    if (!videoId) return;
     
     try {
-      const response = await fetch(videoUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `video_${videoId}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      console.log('Download started for video:', videoId);
+      
+      // Appel direct comme dans la V1
+      const response = await fetch(`http://localhost:8000/videos/${videoId}/download`);
+      const data = await response.json();
+      console.log('Download response:', data);
+      
+      // Ouvrir l'URL directement
+      window.open(data.download_url, '_blank');
+      
+      console.log('Download triggered successfully');
     } catch (err) {
       console.error('Download failed:', err);
+      alert('Failed to download video. Please try again.');
     }
   };
 
