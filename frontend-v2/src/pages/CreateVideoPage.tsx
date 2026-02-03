@@ -31,12 +31,14 @@ export function CreateVideoPage() {
     setError(null);
 
     try {
-      const result = await apiService.createVideo({
+      const payload = {
         theme: theme.trim(),
         target_duration: duration,
         style,
         language
-      });
+      };
+      console.log('Creating video with payload:', payload);
+      const result = await apiService.createVideo(payload);
 
       // Redirect to progress page with video ID
       navigate(`/progress/${result.video_id}`);

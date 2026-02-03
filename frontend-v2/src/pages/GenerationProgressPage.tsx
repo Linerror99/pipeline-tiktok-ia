@@ -10,7 +10,7 @@ import { useVideoProgress } from '../hooks/useVideoProgress';
 
 export function GenerationProgressPage() {
   const navigate = useNavigate();
-  const { videoId } = useParams<{ videoId: string }>();
+  const { id: videoId } = useParams<{ id: string }>();
   const { status, error, isConnected } = useVideoProgress(videoId || '');
 
   useEffect(() => {
@@ -55,17 +55,29 @@ export function GenerationProgressPage() {
     ];
 
     const statusValue = status?.status || '';
+    console.log('🔍 Current status:', statusValue, 'Full status:', status);
     
+    // Map Firestore status to steps
     if (statusValue === 'completed') {
       steps.forEach(s => s.done = true);
-    } else if (statusValue === 'processing' && status?.current_step) {
-      const step = status.current_step.toLowerCase();
-      if (step.includes('script')) {
+    } else if (statusValue === 'script_generated') {
+      steps[0].done = true; // Script done
+    } else if (statusValue === 'generating_parallel' || statusValue === 'parallel_generation') {
+      steps[0].done = true; // Script done
+      console.log('✅ Marking script as done for parallel generation');
+      // Video generation in progress (not done yet)
+    } else if (statusValue === 'ready_for_assembly' || statusValue === 'assembling') {
+      steps[0].done = true; // Script done
+      steps[1].done = true; // Video done
+      // Assembly in progress
+    } else if (statusValue === 'failed' || statusValue === 'error') {
+      // Mark steps as done up to where it failed
+      const currentStep = status?.current_step?.toLowerCase() || '';
+      if (currentStep.includes('script')) {
+        // Failed during script
+      } else if (currentStep.includes('génération') || currentStep.includes('video')) {
         steps[0].done = true;
-      } else if (step.includes('génération') || step.includes('video')) {
-        steps[0].done = true;
-        steps[1].done = false;
-      } else if (step.includes('assemblage') || step.includes('assembl')) {
+      } else if (currentStep.includes('assemblage')) {
         steps[0].done = true;
         steps[1].done = true;
       }
@@ -76,6 +88,7 @@ export function GenerationProgressPage() {
 
   const steps = getSteps();
   const currentStepIndex = steps.findIndex(s => !s.done);
+  console.log('📍 Current step index:', currentStepIndex, 'Steps:', steps.map(s => ({ label: s.label, done: s.done })));
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 max-w-2xl mx-auto relative">

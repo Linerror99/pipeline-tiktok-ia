@@ -176,7 +176,10 @@ class ApiService {
   // WebSocket
   createWebSocket(videoId: string): WebSocket {
     const token = this.getToken();
-    return new WebSocket(`${WS_BASE_URL}/ws/video/${videoId}?token=${token}`);
+    const url = token 
+      ? `${WS_BASE_URL}/ws/video/${videoId}?token=${token}`
+      : `${WS_BASE_URL}/ws/video/${videoId}`;
+    return new WebSocket(url);
   }
 }
 

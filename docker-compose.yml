@@ -15,10 +15,10 @@ services:
       - BUCKET_NAME_V2=tiktok-pipeline-v2-artifacts-reetik-project
       
       # Cloud Functions
-      - AGENT_SCRIPT_V2_URL=https://us-central1-reetik-project.cloudfunctions.net/agent-script-v2
+      - SCRIPT_AGENT_URL=https://us-central1-reetik-project.cloudfunctions.net/agent-script-v2
       
       # Auth
-      - ACCESS_CODE=dev-access-code-123
+      - ACCESS_CODE=DEV12345
       - SECRET_KEY=dev-secret-key-for-jwt-minimum-32-characters
       
       # CORS (JSON array format required by pydantic)
@@ -43,7 +43,7 @@ services:
       args:
         - VITE_API_URL=http://localhost:8000
         - VITE_WS_URL=ws://localhost:8000
-        - VITE_ACCESS_CODE=dev-access-code-123
+        - VITE_ACCESS_CODE=DEV12345
     container_name: tiktok-frontend
     ports:
       - "3000:80"
