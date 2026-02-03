@@ -28,6 +28,25 @@ class StorageService:
                 if not data or data.get('status') not in ['completed', 'ready_for_assembly', 'generating_parallel', 'failed']:
                     continue
                 
+                # Récupérer le thème depuis v2_video_status
+                theme = "Untitled video"
+                try:
+                    status_doc = self.firestore_client.collection('v2_video_status').document(doc.id).get()
+                    if status_doc.exists:
+                        status_data = status_doc.to_dict()
+                        stored_theme = status_data.get('theme')
+                        if stored_theme:
+                            theme = stored_theme
+                        else:
+                            # Fallback: extraire du premier bloc de script
+                            theme = self._extract_theme_from_blocks(data.get('blocks', []))
+                    else:
+                        # Fallback: extraire du premier bloc de script
+                        theme = self._extract_theme_from_blocks(data.get('blocks', []))
+                except:
+                    # Fallback: extraire du premier bloc de script
+                    theme = self._extract_theme_from_blocks(data.get('blocks', []))
+                
                 # Générer URL signée pour vidéos complétées
                 stream_url = None
                 if data.get('status') == 'completed' and data.get('final_url'):
@@ -43,7 +62,7 @@ class StorageService:
                 video_info = {
                     "id": doc.id,
                     "video_id": doc.id,  # Alias pour compatibilité frontend
-                    "theme": self._extract_theme_from_blocks(data.get('blocks', [])),
+                    "theme": theme,
                     "status": self._map_status(data.get('status')),
                     "created_at": data.get('created_at').isoformat() if data.get('created_at') else None,
                     "video_url": stream_url,  # URL signée HTTP

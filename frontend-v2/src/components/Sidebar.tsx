@@ -57,7 +57,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           </motion.div>
           <div>
             <h1 className="font-display font-bold text-xl text-white">
-              VideoAI
+              Reetik
             </h1>
             <p className="text-xs text-emerald-400/60">Studio Pro</p>
           </div>

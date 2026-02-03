@@ -133,6 +133,7 @@ def generate_script(request):
         
         # Update Firestore status
         update_firestore_status(video_id, "script_generated", {
+            "theme": theme,
             "blocks_count": len(blocks),
             "duration": expected_duration
         })

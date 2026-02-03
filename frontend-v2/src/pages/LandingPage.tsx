@@ -441,7 +441,7 @@ export function LandingPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-lime-500 flex items-center justify-center">
               <Zap className="w-4 h-4 text-dark-900" />
             </div>
-            <span className="font-display font-bold text-white">VideoAI</span>
+            <span className="font-display font-bold text-white">Reetik</span>
           </div>
 
           <div className="flex items-center gap-8 text-sm text-white/40">
@@ -457,7 +457,7 @@ export function LandingPage() {
           </div>
 
           <p className="text-sm text-white/30">
-            © 2024 VideoAI. All rights reserved.
+            © 2026 Reetik. All rights reserved.
           </p>
         </div>
       </footer>
