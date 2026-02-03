@@ -1,64 +1,111 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Film, Clock, Zap, Plus, Sparkles } from 'lucide-react';
+import { Film, Clock, Zap, Plus, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { TiltCard } from '../components/TiltCard';
 import { PulseButton } from '../components/PulseButton';
 import { AnimatedCounter } from '../components/AnimatedCounter';
+import { apiService } from '../services/api';
+
 export function DashboardPage() {
   const navigate = useNavigate();
-  const stats = [
-  {
-    label: 'Total Videos',
-    value: 24,
-    icon: Film,
-    color: 'emerald'
-  },
-  {
-    label: 'Total Duration',
-    value: '12m 30s',
-    icon: Clock,
-    color: 'lime'
-  },
-  {
-    label: 'Processing',
-    value: 1,
-    icon: Zap,
-    color: 'teal'
-  }];
+  const [videos, setVideos] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const recentVideos = [
-  {
-    id: '1',
-    title: 'Morning Routine Tips',
-    duration: '00:45',
-    date: 'Today',
-    status: 'completed',
-    thumbnailUrl:
-    'https://images.unsplash.com/photo-1611162616475-46b635cb6868?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: '2',
-    title: 'Coffee Culture',
-    duration: '00:30',
-    date: 'Yesterday',
-    status: 'processing',
-    thumbnailUrl:
-    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=600&auto=format&fit=crop'
-  },
-  {
-    id: '3',
-    title: 'Travel Hacks 2024',
-    duration: '01:00',
-    date: '2 days ago',
-    status: 'completed',
-    thumbnailUrl:
-    'https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=600&auto=format&fit=crop'
-  }];
+  useEffect(() => {
+    loadVideos();
+  }, []);
+
+  const loadVideos = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.listVideos();
+      setVideos(response.videos || []);
+    } catch (err: any) {
+      console.error('Error loading videos:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calcul des stats depuis les vraies données
+  const completedVideos = videos.filter(v => v.status === 'completed');
+  const processingVideos = videos.filter(v => v.status === 'processing');
+  const totalDuration = completedVideos.reduce((sum, v) => sum + (v.duration || 0), 0);
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
+
+  const stats = [
+    {
+      label: 'Total Videos',
+      value: completedVideos.length,
+      icon: Film,
+      color: 'emerald'
+    },
+    {
+      label: 'Total Duration',
+      value: formatDuration(totalDuration),
+      icon: Clock,
+      color: 'lime'
+    },
+    {
+      label: 'Processing',
+      value: processingVideos.length,
+      icon: Zap,
+      color: 'teal'
+    }
+  ];
+
+  // 3 vidéos les plus récentes
+  const recentVideos = videos
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3)
+    .map(v => ({
+      id: v.video_id || v.id,
+      title: v.theme,
+      duration: v.duration ? `${Math.floor(v.duration / 60)}:${(v.duration % 60).toString().padStart(2, '0')}` : '0:00',
+      date: new Date(v.created_at).toLocaleDateString('fr-FR', { 
+        day: 'numeric', 
+        month: 'short' 
+      }),
+      status: v.status,
+      thumbnailUrl: null
+    }));
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto space-y-10">
-      {/* Header */}
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-12 h-12 text-emerald-400 animate-spin" />
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !isLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-center py-20">
+          <div className="text-center">
+            <AlertCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <p className="text-red-400 font-medium mb-2">Failed to load dashboard</p>
+            <p className="text-white/70 mb-6">{error}</p>
+            <PulseButton onClick={loadVideos}>Try Again</PulseButton>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Main Content */}
+      {!isLoading && !error && (
+        <>
+          {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <motion.div
           initial={{
@@ -168,11 +215,14 @@ export function DashboardPage() {
             }}>
 
               <TiltCard>
-                <div className="aspect-[9/16] relative overflow-hidden">
-                  <img
-                  src={video.thumbnailUrl}
-                  alt={video.title}
-                  className="w-full h-full object-cover" />
+                <div className="aspect-[9/16] relative overflow-hidden cursor-pointer"
+                     onClick={() => video.status === 'completed' 
+                       ? navigate(`/video/${video.id}`) 
+                       : navigate(`/progress/${video.id}`)}>
+                  {/* Placeholder si pas de thumbnail */}
+                  <div className="w-full h-full bg-gradient-to-br from-emerald-500/20 to-lime-500/20 flex items-center justify-center">
+                    <Film className="w-16 h-16 text-white/30" />
+                  </div>
 
                   <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-transparent to-transparent" />
                   <div className="absolute top-3 right-3">
@@ -197,6 +247,8 @@ export function DashboardPage() {
           )}
         </div>
       </section>
-    </div>);
-
+        </>
+      )}
+    </div>
+  );
 }
