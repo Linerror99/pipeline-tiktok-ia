@@ -300,22 +300,58 @@ gcloud functions logs read generate-assembler-agent --gen2 --region=us-central1 
 ## 📁 Structure du Projet
 
 ```
-pipeline-video-tiktok/
-├── agent-script/
-│   ├── main.py              # Génération script avec Gemini
-│   └── requirements.txt
-├── agent-audio/
-│   ├── main.py              # Génération audio avec TTS
-│   └── requirements.txt
-├── agent-video/
-│   ├── main.py              # Génération vidéo avec Veo
-│   └── requirements.txt
-├── agent-assembler/
-│   ├── main.py              # Assemblage avec FFmpeg + Whisper
-│   ├── requirements.txt
-│   └── Dockerfile           # Container avec FFmpeg
-└── README.md
+pipeline-tiktok-ia/
+├── agent-script/           # Agent génération script (Gemini)
+├── agent-audio/            # Agent génération audio (TTS)
+├── agent-video/            # Agent génération vidéo (Veo)
+├── agent-assembler/        # Agent assemblage (FFmpeg + Whisper)
+├── backend/                # API FastAPI (Cloud Run)
+├── frontend/               # Application React (Cloud Run)
+├── cloud-functions/        # Cloud Functions (rotation, monitoring)
+├── terraform/              # Infrastructure as Code
+├── scripts/                # Scripts de déploiement et utilitaires
+├── docs/                   # Documentation organisée
+│   ├── deployment/         # Guides de déploiement
+│   ├── architecture/       # Architecture et systèmes
+│   ├── migration/          # Historique des migrations
+│   ├── plans/              # Plans et analyses
+│   └── legacy/             # Documentation obsolète (référence)
+├── docker-compose.yml      # Environnement local de développement
+├── firestore.rules         # Règles de sécurité Firestore
+└── README.md               # Ce fichier
 ```
+
+---
+
+## 📚 Documentation Détaillée
+
+La documentation complète est organisée dans le dossier `docs/` :
+
+### Déploiement (`docs/deployment/`)
+- **[DEPLOYMENT_GUIDE.md](docs/deployment/DEPLOYMENT_GUIDE.md)** - Guide complet de déploiement
+- **[PRODUCTION_DEPLOYMENT.md](docs/deployment/PRODUCTION_DEPLOYMENT.md)** - Déploiement production (Cloud Run + CI/CD)
+- **[WIF_SETUP.md](docs/deployment/WIF_SETUP.md)** - Configuration Workload Identity Federation
+- **[PRODUCTION_URLS.md](docs/deployment/PRODUCTION_URLS.md)** - URLs et endpoints de production
+- **[SERVICE_ACCOUNT_SETUP.md](docs/deployment/SERVICE_ACCOUNT_SETUP.md)** - Configuration des service accounts
+- **[DOCKER_OPTIMIZATION.md](docs/deployment/DOCKER_OPTIMIZATION.md)** - Optimisation des images Docker
+
+### Architecture (`docs/architecture/`)
+- **[AUTH_SYSTEM.md](docs/architecture/AUTH_SYSTEM.md)** - Système d'authentification complet
+- **[ACCESS_CODE_SYSTEM.md](docs/architecture/ACCESS_CODE_SYSTEM.md)** - Système de codes d'accès rotatifs
+- **[RETRY_SYSTEM.md](docs/architecture/RETRY_SYSTEM.md)** - Système de retry automatique
+- **[FLOW_SYNC_V2.md](docs/architecture/FLOW_SYNC_V2.md)** - Flow de synchronisation V2
+- **[Structure_actuelle.md](docs/architecture/Structure_actuelle.md)** - Structure actuelle détaillée
+
+### Migration (`docs/migration/`)
+- **[MIGRATION_V2_RESUME.md](docs/migration/MIGRATION_V2_RESUME.md)** - Résumé migration V2
+- **[V1_VS_V2_COMPARISON.md](docs/migration/V1_VS_V2_COMPARISON.md)** - Comparaison V1 vs V2
+- **[V2.1_MIGRATION.md](docs/migration/V2.1_MIGRATION.md)** - Migration V2.1
+
+### Plans & Analyses (`docs/plans/`)
+- **[PLAN_DEVELOPPEMENT_COMPLET.md](docs/plans/PLAN_DEVELOPPEMENT_COMPLET.md)** - Plan de développement complet
+- **[PLAN_EVOLUTION_V2.md](docs/plans/PLAN_EVOLUTION_V2.md)** - Plan d'évolution V2
+- **[EVOLUTION_VEO3.1.md](docs/plans/EVOLUTION_VEO3.1.md)** - Évolution vers Veo 3.1
+- **[PRICING_ANALYSIS_REAL.md](docs/plans/PRICING_ANALYSIS_REAL.md)** - Analyse de coûts réels
 
 ---
 

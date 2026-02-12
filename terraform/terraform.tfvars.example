@@ -1,0 +1,13 @@
+# Exemple de fichier de configuration
+# Copier vers terraform.tfvars et remplir avec vos valeurs
+
+project_id = "reetik-project"
+region     = "us-central1"
+environment = "prod"
+
+bucket_name_v1 = "tiktok-pipeline-artifacts-reetik"
+bucket_name_v2 = "tiktok-pipeline-v2-artifacts-reetik"
+
+# Configuration Cloud Functions
+cloud_functions_timeout = 540
+cloud_functions_memory  = "2Gi"

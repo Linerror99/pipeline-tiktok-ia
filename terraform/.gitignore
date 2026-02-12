@@ -1,0 +1,11 @@
+# Terraform files
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!terraform.tfvars.example
+.terraform.lock.hcl
+
+# Temporary build files
+.terraform/tmp/
+*.zip

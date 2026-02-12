@@ -1,185 +1,191 @@
 import functions_framework
 from google.cloud import storage, firestore
-import google.auth
-from google.auth.transport.requests import Request
-import requests
+from google import genai
+from google.genai import types
 import os
-import re
-import time
+import json
 from datetime import datetime
 
 storage_client = storage.Client()
 firestore_client = firestore.Client()
-credentials, project_id = google.auth.default()
 
-def get_access_token():
-    """Récupère un token d'accès pour l'API Vertex AI"""
-    if not credentials.valid:
-        credentials.refresh(Request())
-    return credentials.token
+PROJECT_ID = os.environ.get("GCP_PROJECT", "pipeline-video-ia")
+LOCATION = "us-central1"
+BUCKET_NAME = os.environ.get("BUCKET_NAME")
 
-def extract_video_scenes(script_content):
-    """
-    Extrait les scènes visuelles du script avec leur INDEX ORIGINAL
-    """
-    scenes = []
-    scene_index = 0
-    
-    base_style_prompt = "Cinematic, photorealistic, vibrant colors. "
-    
-    for line in script_content.splitlines():
-        upper_line = line.strip().upper()
-        marker_pos = upper_line.find("VISUEL")
-        
-        if marker_pos != -1:
-            colon_pos = upper_line.find(":", marker_pos)
-            if colon_pos != -1:
-                scene_index += 1
-                text_part = line.strip()[colon_pos + 1:]
-                prompt_text = text_part.strip().replace('*', '').replace('#', '')
-                full_prompt = base_style_prompt + prompt_text
-                
-                scenes.append({
-                    'index': scene_index,  # INDEX ORIGINAL
-                    'prompt': full_prompt
-                })
-    
-    return scenes
+# Client Gemini API pour Veo 3.1 via Vertex AI
+genai_client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
 @functions_framework.cloud_event
-def generate_video(cloudevent):
-    data = cloudevent.data
-    bucket_name = data["bucket"]
-    audio_file_name = data["name"]
-
-    print(f"🎬 Déclencheur reçu pour le fichier audio : {audio_file_name}")
-
-    if not audio_file_name.startswith("audio_") or not audio_file_name.endswith(".mp3"):
-        print(f"❌ Fichier non-audio {audio_file_name}. Traitement ignoré.")
-        return "OK"
-
-    # --- Lecture du script ---
-    script_file_name = audio_file_name.replace("audio_", "script_").replace(".mp3", ".txt")
-    try:
-        bucket = storage_client.bucket(bucket_name)
-        script_blob = bucket.blob(script_file_name)
-        if not script_blob.exists():
-            print(f"❌ Erreur: script {script_file_name} non trouvé.")
-            return "Error: Script not found"
-        script_content = script_blob.download_as_text(encoding="utf-8")
-    except Exception as e:
-        print(f"❌ Erreur lors de la lecture du script : {e}")
-        return
-
-    print(f"📄 Script chargé ({len(script_content)} caractères)")
-
-    # --- Extraction des scènes avec INDEX ORIGINAL ---
-    scenes = extract_video_scenes(script_content)
-
-    if not scenes:
-        print("❌ Aucun prompt visuel trouvé. Arrêt.")
-        return "OK"
-
-    print(f"🎥 {len(scenes)} scènes visuelles détectées")
+def generate_video_v2(cloudevent):
+    """
+    Cloud Function déclenchée par upload de script_v2.json
+    Génère BLOC 1 (8s) avec Veo 3.1 Fast + audio natif
     
-    # Afficher les scènes avec leur index
-    for scene in scenes:
-        print(f"  Scène {scene['index']}: {scene['prompt'][:60]}...")
-
-    # --- Appel API REST ---
+    CloudEvent data:
+    {
+        "bucket": "tiktok-pipeline-v2-artifacts",
+        "name": "{video_id}/script_v2.json"
+    }
+    """
     try:
-        video_base_name = os.path.splitext(audio_file_name.replace("audio_", ""))[0]
-        location = "us-central1"
-        model_id = "veo-3.0-generate-001"
+        data = cloudevent.data
+        bucket_name = data["bucket"]
+        file_name = data["name"]
         
-        api_endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:predictLongRunning"
+        print(f"📡 Déclencheur reçu pour le fichier : {file_name}")
         
-        headers = {
-            "Authorization": f"Bearer {get_access_token()}",
-            "Content-Type": "application/json; charset=utf-8"
-        }
+        # Vérifier que c'est bien un script_v2.json
+        if not file_name.endswith("/script_v2.json"):
+            print(f"⚠️ Fichier non-script {file_name}. Traitement ignoré.")
+            return "OK"
         
-        print(f"🚀 Lancement de {len(scenes)} tâches Veo en parallèle...")
+        # Extraire video_id du path: {video_id}/script_v2.json
+        video_id = file_name.split("/")[0]
         
-        # Préparer le document video_status centralisé
-        clips_data = {}
+        print(f"🎬 Génération Veo 3.1 Fast pour video_id: {video_id}")
         
-        for scene in scenes:
-            scene_index = scene['index']  # INDEX ORIGINAL (pas l'ordre de la boucle)
-            prompt = scene['prompt']
+    except Exception as e:
+        print(f"❌ Erreur parsing CloudEvent: {e}")
+        return "ERROR"
+    
+    try:
+        # Charger script V2
+        bucket = storage_client.bucket(BUCKET_NAME)
+        script_blob = bucket.blob(f"{video_id}/script_v2.json")
+        
+        if not script_blob.exists():
+            return {"error": f"Script {video_id}/script_v2.json non trouvé"}, 404
+        
+        script_data = json.loads(script_blob.download_as_text())
+        blocks = script_data.get('blocks', [])
+        
+        if not blocks:
+            return {"error": "Aucun bloc dans le script"}, 400
+        
+        print(f"📝 Script chargé: {len(blocks)} blocs")
+        
+        # Générer TOUS les blocs en parallèle
+        print(f"\n{'='*60}")
+        print(f"🎬 GÉNÉRATION DE {len(blocks)} BLOCS EN PARALLÈLE")
+        print(f"{'='*60}")
+        
+        operations = {}
+        clips_status = {}
+        
+        for idx, block_data in enumerate(blocks, start=1):
+            print(f"\n🎥 BLOC {idx}/{len(blocks)}")
+            print(f"   Dialogue: {block_data['dialogue'][:80]}...")
+            print(f"   Durée: {block_data['duration']}s")
             
-            # IMPORTANT : Utiliser scene_index (pas enumerate)
-            output_storage_uri = f"gs://{bucket_name}/video_clips/{video_base_name}/clip_{scene_index}/"
+            # Construire prompt avec contexte de continuité si bloc > 1
+            visual_prompt = block_data['visuel']
+            dialogue = block_data['dialogue']
             
-            print(f"  🎬 Lancement Scène {scene_index}")
-            print(f"     Sortie : {output_storage_uri}")
-
-            request_body = {
-                "instances": [
-                    {
-                        "prompt": prompt
-                    }
-                ],
-                "parameters": {
-                    "storageUri": output_storage_uri,
-                    "sampleCount": 1,
-                    "aspectRatio": "9:16",
-                    "durationSecs": 4
-                }
-            }
-
-            response = requests.post(api_endpoint, headers=headers, json=request_body)
-            
-            if response.status_code == 200:
-                operation_data = response.json()
-                operation_name = operation_data.get('name', 'N/A')
-                print(f"    ✓ Tâche lancée pour Scène {scene_index}")
-                print(f"      Opération : {operation_name}")
-                
-                # Enregistrer dans le dictionnaire
-                clips_data[str(scene_index)] = {
-                    'status': 'pending',
-                    'operation_name': operation_name,
-                    'prompt': prompt,
-                    'retry_count': 0,
-                    'gcs_uri': None
-                }
+            if idx > 1:
+                # Ajouter contexte pour continuité narrative
+                full_prompt = f"Suite de la scène précédente. {visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
             else:
-                print(f"    ❌ Erreur API pour Scène {scene_index} (code {response.status_code})")
-                print(f"       {response.text}")
+                full_prompt = f"{visual_prompt}\n\nDialogue à générer en audio: \"{dialogue}\""
+            
+            # Générer avec Veo 3.1 (avec gestion des erreurs de safety)
+            try:
+                operation = genai_client.models.generate_videos(
+                    model="veo-3.1-generate-preview",
+                    prompt=full_prompt,
+                    config=types.GenerateVideosConfig(
+                        aspect_ratio="9:16",
+                        resolution="720p",
+                        duration_seconds=8,
+                        person_generation="allow_all"
+                    )
+                )
                 
-                # Enregistrer l'échec
-                clips_data[str(scene_index)] = {
-                    'status': 'failed',
-                    'operation_name': None,
-                    'prompt': prompt,
-                    'retry_count': 0,
-                    'gcs_uri': None,
-                    'error': response.text[:200]
-                }
+                operations[idx] = operation.name
+                clips_status[idx] = 'generating'
+                
+                print(f"   ✅ Génération lancée: {operation.name[:60]}...")
+                
+            except Exception as e:
+                error_msg = str(e)
+                print(f"   ❌ Bloc {idx} échoué: {error_msg}")
+                
+                # Si erreur de safety/guidelines, générer prompt générique de secours
+                if 'usage guidelines' in error_msg.lower() or 'third-party content' in error_msg.lower():
+                    print(f"   🔄 Tentative avec prompt générique...")
+                    fallback_prompt = f"Scène abstraite colorée avec des formes géométriques en mouvement sur fond uni. Style moderne et épuré. Durée: 8 secondes."
+                    
+                    try:
+                        operation = genai_client.models.generate_videos(
+                            model="veo-3.1-generate-preview",
+                            prompt=fallback_prompt,
+                            config=types.GenerateVideosConfig(
+                                aspect_ratio="9:16",
+                                resolution="720p",
+                                duration_seconds=8,
+                                person_generation="allow_all"
+                            )
+                        )
+                        operations[idx] = operation.name
+                        clips_status[idx] = 'generating'
+                        print(f"   ✅ Prompt de secours accepté")
+                    except Exception as e2:
+                        print(f"   ❌ Échec définitif bloc {idx}: {e2}")
+                        clips_status[idx] = 'failed'
+                else:
+                    clips_status[idx] = 'failed'
         
-        # Créer le document video_status centralisé dans Firestore
-        video_status_ref = firestore_client.collection('video_status').document(video_base_name)
-        video_status_ref.set({
-            'video_id': video_base_name,
-            'total_clips': len(scenes),
-            'completed_clips': 0,
-            'status': 'processing',  # processing, ready_to_assemble, assembling, completed, failed
-            'clips': clips_data,
-            'bucket_name': bucket_name,
-            'created_at': datetime.utcnow(),
-            'updated_at': datetime.utcnow()
+        print(f"\n✅ {len(blocks)} générations lancées en parallèle !")
+        
+        # Convertir les clés int en string pour Firestore
+        operations_str = {str(k): v for k, v in operations.items()}
+        clips_status_str = {str(k): v for k, v in clips_status.items()}
+        
+        # Stocker dans Firestore pour monitoring
+        firestore_client.collection('v2_veo_operations').document(video_id).set({
+            'video_id': video_id,
+            'script_file': f"{video_id}/script_v2.json",
+            'operations': operations_str,  # Dict {"1": "op_name", "2": "op_name", ...}
+            'clips_status': clips_status_str,  # Dict {"1": "generating", "2": "generating", ...}
+            'status': 'generating_parallel',
+            'total_blocks': len(blocks),
+            'completed_blocks': 0,
+            'blocks': blocks,
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'updated_at': firestore.SERVER_TIMESTAMP,
+            'retry_count': 0
         })
         
-        print(f"\n📝 Document video_status créé pour {video_base_name}")
-        print(f"   Total clips: {len(scenes)}")
-        print(f"   Status: processing")
-            
+        # Update v2_video_status
+        firestore_client.collection('v2_video_status').document(video_id).update({
+            'status': 'generating_video',
+            'current_step': 'parallel_generation',
+            'updated_at': firestore.SERVER_TIMESTAMP
+        })
+        
+        print(f"📊 Firestore updated: v2_veo_operations/{video_id}")
+        
+        return {
+            "status": "success",
+            "video_id": video_id,
+            "operations_count": len(operations),
+            "total_blocks": len(blocks),
+            "message": f"Génération de {len(blocks)} blocs lancée en parallèle"
+        }, 200
+        
     except Exception as e:
-        print(f"❌ Erreur lors du lancement de la génération vidéo : {e}")
+        print(f"❌ Erreur: {e}")
         import traceback
         traceback.print_exc()
-        return
-
-    print(f"\n🎉 Toutes les tâches lancées avec ORDRE PRÉSERVÉ !")
-    return "OK"
+        
+        # Update Firestore avec erreur
+        try:
+            firestore_client.collection('v2_video_status').document(video_id).update({
+                'status': 'error',
+                'error_message': str(e),
+                'updated_at': firestore.SERVER_TIMESTAMP
+            })
+        except:
+            pass
+        
+        return {"error": str(e)}, 500

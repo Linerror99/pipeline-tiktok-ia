@@ -3,7 +3,7 @@
 # Script pour déployer la Cloud Function de retry des clips vidéo
 # et configurer un Cloud Scheduler pour l'exécuter toutes les 10 minutes
 
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
 FUNCTION_NAME="check-and-retry-clips"
 SCHEDULER_JOB_NAME="retry-clips-scheduler"

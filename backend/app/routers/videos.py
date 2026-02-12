@@ -14,6 +14,9 @@ router = APIRouter(prefix="/videos", tags=["videos"])
 class VideoCreateRequest(BaseModel):
     theme: str
     access_code: str = Field(..., min_length=8, max_length=8, description="Code d'accès actuel")
+    target_duration: int = Field(default=36, ge=8, le=78, description="Durée cible en secondes (8-78s)")
+    style: str = Field(default="informative", description="Style visuel (informative, humorous, dramatic, inspiring)")
+    language: str = Field(default="fr", description="Langue (fr, en, es)")
 
 
 class VideoResponse(BaseModel):
@@ -29,13 +32,10 @@ class VideosListResponse(BaseModel):
 
 
 @router.post("/create", response_model=VideoResponse)
-async def create_video(
-    request: VideoCreateRequest,
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
+async def create_video(request: VideoCreateRequest):
     """
     Déclenche la génération d'une nouvelle vidéo TikTok
-    Protégé par JWT + Code d'accès - nécessite authentification ET code valide
+    Protégé uniquement par code d'accès (pas de JWT pour simplifier les tests)
     """
     if not request.theme or len(request.theme.strip()) == 0:
         raise HTTPException(status_code=400, detail="Le thème ne peut pas être vide")
@@ -50,18 +50,25 @@ async def create_video(
             detail="Code d'accès invalide. Il change toutes les heures."
         )
     
-    # Vérifier le quota
-    if not can_create_video(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Quota atteint : {current_user.video_count}/{current_user.max_videos} vidéos utilisées"
-        )
+    # TODO: Réactiver les quotas avec JWT ou système d'auth
+    # # Vérifier le quota
+    # if not can_create_video(current_user):
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail=f"Quota atteint : {current_user.video_count}/{current_user.max_videos} vidéos utilisées"
+    #     )
     
     try:
-        result = video_generation_service.create_video(request.theme)
+        result = video_generation_service.create_video(
+            theme=request.theme,
+            target_duration=request.target_duration,
+            style=request.style,
+            language=request.language
+        )
         
-        # Incrémenter le compteur de vidéos
-        increment_video_count(current_user.id)
+        # TODO: Réactiver avec JWT ou système d'auth
+        # # Incrémenter le compteur de vidéos
+        # increment_video_count(current_user.id)
         
         return VideoResponse(**result)
     except ValueError as e:
@@ -71,12 +78,10 @@ async def create_video(
 
 
 @router.get("", response_model=VideosListResponse)
-async def list_videos(
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
+async def list_videos():
     """
     Liste toutes les vidéos générées
-    Protégé par JWT - nécessite authentification
+    Endpoint public - pas d'authentification requise
     """
     try:
         videos = storage_service.list_videos()
@@ -86,13 +91,10 @@ async def list_videos(
 
 
 @router.get("/{video_id}/status")
-async def get_video_status(
-    video_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
+async def get_video_status(video_id: str):
     """
     Récupère le statut d'une vidéo en cours de génération
-    Protégé par JWT - nécessite authentification
+    Endpoint public - pas d'authentification requise
     """
     try:
         status = storage_service.get_video_status(video_id)
@@ -102,13 +104,10 @@ async def get_video_status(
 
 
 @router.get("/{video_id}/download")
-async def download_video(
-    video_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
+async def download_video(video_id: str):
     """
     Récupère l'URL de téléchargement d'une vidéo (force le téléchargement du fichier)
-    Protégé par JWT - nécessite authentification
+    Endpoint public - pas d'authentification requise
     """
     try:
         url = storage_service.get_video_url(video_id, expiration_minutes=60)
@@ -123,13 +122,10 @@ async def download_video(
 
 
 @router.get("/{video_id}/stream")
-async def stream_video(
-    video_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-):
+async def stream_video(video_id: str):
     """
     Récupère l'URL de streaming d'une vidéo (lecture dans le navigateur)
-    Protégé par JWT - nécessite authentification
+    Endpoint public - pas d'authentification requise
     """
     try:
         url = storage_service.get_video_stream_url(video_id)

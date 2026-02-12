@@ -2,7 +2,7 @@
 
 # Script de déploiement de la Cloud Function et du Cloud Scheduler
 
-PROJECT_ID="pipeline-video-ia"
+PROJECT_ID="reetik-project"
 REGION="us-central1"
 FUNCTION_NAME="rotate-access-code"
 

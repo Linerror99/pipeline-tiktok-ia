@@ -25,3 +25,18 @@
     @apply w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200;
   }
 }
+
+@layer utilities {
+  @keyframes slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(400%);
+    }
+  }
+  
+  .animate-slide {
+    animation: slide 1.5s ease-in-out infinite;
+  }
+}
