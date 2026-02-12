@@ -131,13 +131,10 @@ class ApiService {
   }
 
   // Videos
-  async createVideo(params: Omit<VideoCreateRequest, 'access_code'>): Promise<VideoResponse> {
+  async createVideo(params: VideoCreateRequest): Promise<VideoResponse> {
     return this.request('/videos/create', {
       method: 'POST',
-      body: JSON.stringify({
-        ...params,
-        access_code: ACCESS_CODE, // Use configured access code
-      }),
+      body: JSON.stringify(params),
     });
   }
 

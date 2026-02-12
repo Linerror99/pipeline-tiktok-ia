@@ -1,0 +1,42 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Collection config - CODE D'ACCÈS
+    // ADMIN ONLY via Console Firebase ou gcloud CLI
+    match /config/{document=**} {
+      // Lecture/Écriture INTERDITE par le frontend
+      // Seuls les services backend avec service account peuvent lire/écrire
+      allow read, write: if false;
+    }
+    
+    // Collection users - Gestion des utilisateurs
+    match /users/{userId} {
+      // Les utilisateurs peuvent lire leur propre profil
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // Seuls les admins peuvent créer/modifier des utilisateurs
+      allow write: if false;
+    }
+    
+    // Collection v2_video_status - Statut des vidéos
+    match /v2_video_status/{videoId} {
+      // Lecture publique (pour affichage dans l'appli)
+      allow read: if true;
+      // Écriture uniquement par le backend (service account)
+      allow write: if false;
+    }
+    
+    // Collection v2_veo_operations - Opérations vidéo détaillées
+    match /v2_veo_operations/{videoId} {
+      // Lecture publique (pour monitoring progression)
+      allow read: if true;
+      // Écriture uniquement par le backend (service account)
+      allow write: if false;
+    }
+    
+    // Toutes les autres collections: interdites par défaut
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

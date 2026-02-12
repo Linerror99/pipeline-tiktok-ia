@@ -8,6 +8,7 @@ import {
   Languages,
   Wand2,
   Rocket,
+  Key,
   AlertCircle } from
 'lucide-react';
 import { TiltCard } from '../components/TiltCard';
@@ -21,11 +22,16 @@ export function CreateVideoPage() {
   const [duration, setDuration] = useState(36);
   const [style, setStyle] = useState('informative');
   const [language, setLanguage] = useState('fr');
+  const [accessCode, setAccessCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!theme.trim()) return;
+    if (!accessCode.trim()) {
+      setError('Le code d\'accès est requis');
+      return;
+    }
     
     setIsLoading(true);
     setError(null);
@@ -35,7 +41,8 @@ export function CreateVideoPage() {
         theme: theme.trim(),
         target_duration: duration,
         style,
-        language
+        language,
+        access_code: accessCode.trim()
       };
       console.log('Creating video with payload:', payload);
       const result = await apiService.createVideo(payload);
@@ -44,7 +51,8 @@ export function CreateVideoPage() {
       navigate(`/progress/${result.video_id}`);
     } catch (err: any) {
       console.error('Error creating video:', err);
-      setError(err.response?.data?.detail || 'Failed to create video. Please try again.');
+      // Extract error message from Error object
+      setError(err.message || 'Failed to create video. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -199,13 +207,34 @@ export function CreateVideoPage() {
               </select>
             </div>
 
+            {/* Access Code */}
+            <div className="space-y-3">
+              <label className="flex items-center text-sm text-amber-400">
+                <Key className="w-4 h-4 mr-2" />
+                Code d'accès
+              </label>
+              <input
+                type="text"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.toUpperCase())}
+                placeholder="ABC123XY"
+                maxLength={8}
+                disabled={isLoading}
+                className="w-full bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 text-white placeholder-white/30 focus:border-amber-500/50 focus:shadow-glow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-wider font-mono"
+              />
+              <p className="text-xs text-white/40 flex items-start gap-2">
+                <AlertCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                <span>Le code change toutes les heures. Contactez l'administrateur pour obtenir le code actuel.</span>
+              </p>
+            </div>
+
             {/* Generate Button */}
             <div className="pt-4">
               <PulseButton
                 fullWidth
                 size="lg"
                 onClick={handleGenerate}
-                disabled={!theme.trim() || isLoading}>
+                disabled={!theme.trim() || !accessCode.trim() || isLoading}>
 
                 <Rocket className="w-5 h-5" />
                 {isLoading ? 'Creating...' : 'Generate Video'}
