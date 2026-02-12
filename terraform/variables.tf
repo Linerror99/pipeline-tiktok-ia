@@ -31,3 +31,15 @@ variable "cloud_functions_memory" {
   type        = string
   default     = "2Gi"
 }
+
+variable "backend_secret_key" {
+  description = "Secret key for JWT token generation (minimum 32 characters)"
+  type        = string
+  sensitive   = true
+}
+
+variable "cors_origins" {
+  description = "List of allowed CORS origins"
+  type        = list(string)
+  default     = []
+}

@@ -1,0 +1,118 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+      - production
+      - v2_migration
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: reetik-project
+  REGION: us-central1
+  REPO_NAME: tiktok-pipeline
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Backend Image
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:${{ github.sha }} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:latest \
+            -f backend/Dockerfile \
+            ./backend
+
+      - name: Build Frontend Image
+        run: |
+          BACKEND_URL="https://tiktok-backend-vrzs3y5aoq-uc.a.run.app"
+          FRONTEND_URL="https://tiktok-frontend-838433433731.us-central1.run.app"
+          docker build \
+            --platform linux/amd64 \
+            --build-arg VITE_API_URL=${BACKEND_URL} \
+            --build-arg VITE_WS_URL=${BACKEND_URL/https/wss} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:${{ github.sha }} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:latest \
+            -f frontend-v2/Dockerfile \
+            ./frontend-v2
+
+      - name: Push Images to Artifact Registry
+        run: |
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:latest
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:${{ github.sha }}
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:latest
+
+      - name: Deploy Backend to Cloud Run
+        run: |
+          gcloud run deploy tiktok-backend \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --service-account pipeline-tiktok-functions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+            --cpu 2 \
+            --memory 2Gi \
+            --min-instances 0 \
+            --max-instances 10 \
+            --set-env-vars "GCP_PROJECT_ID=${{ env.PROJECT_ID }},GCP_REGION=${{ env.REGION }},BUCKET_NAME_V2=tiktok-pipeline-v2-artifacts-${{ env.PROJECT_ID }},SCRIPT_AGENT_URL=https://us-central1-${{ env.PROJECT_ID }}.cloudfunctions.net/agent-script-v2,CORS_ORIGINS=[\"https://tiktok-frontend-838433433731.us-central1.run.app\"]" \
+            --set-secrets "SECRET_KEY=backend-secret-key:latest" \
+            --quiet
+
+      - name: Deploy Frontend to Cloud Run
+        run: |
+          gcloud run deploy tiktok-frontend \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:${{ github.sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --cpu 1 \
+            --memory 512Mi \
+            --min-instances 0 \
+            --max-instances 5 \
+            --quiet
+
+      - name: Get Service URLs
+        id: urls
+        run: |
+          BACKEND_URL=$(gcloud run services describe tiktok-backend --region ${{ env.REGION }} --format 'value(status.url)')
+          FRONTEND_URL=$(gcloud run services describe tiktok-frontend --region ${{ env.REGION }} --format 'value(status.url)')
+          echo "backend_url=${BACKEND_URL}" >> $GITHUB_OUTPUT
+          echo "frontend_url=${FRONTEND_URL}" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Services" >> $GITHUB_STEP_SUMMARY
+          echo "- **Backend**: ${{ steps.urls.outputs.backend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend**: ${{ steps.urls.outputs.frontend_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🐳 Images" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: \`${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/backend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: \`${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/frontend:${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
