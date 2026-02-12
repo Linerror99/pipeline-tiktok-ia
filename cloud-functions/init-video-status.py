@@ -6,8 +6,8 @@ pour toutes les vidéos existantes dans GCS
 from google.cloud import storage, firestore
 import re
 
-PROJECT_ID = "pipeline-video-ia"
-BUCKET_NAME = "tiktok-pipeline-artifacts-pipeline-video-ia"
+PROJECT_ID = "reetik-project"
+BUCKET_NAME = "tiktok-pipeline-artifacts-reetik-project"
 
 storage_client = storage.Client(project=PROJECT_ID)
 firestore_client = firestore.Client(project=PROJECT_ID)

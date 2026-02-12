@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Loader2, CheckCircle, AlertCircle, Key } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { subscribeToVideoStatus, getStatusMessage } from '../services/videoStatus';
+import VideoGenerationProgress from '../components/VideoGenerationProgress';
 
 const CreateVideo = () => {
   const { refreshUser } = useAuth();
   const [theme, setTheme] = useState('');
   const [accessCode, setAccessCode] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [status, setStatus] = useState(null);
   const [videoId, setVideoId] = useState(null);
   const [error, setError] = useState(null);
+  const [videoStatus, setVideoStatus] = useState(null);
+  const [statusInfo, setStatusInfo] = useState(null);
 
   const exampleThemes = [
     "Les mystères des pyramides de Bosnie",
@@ -19,6 +22,34 @@ const CreateVideo = () => {
     "Les secrets du château de Versailles",
     "L'intelligence artificielle va-t-elle dominer le monde?"
   ];
+
+  // Écouter les changements d'état en temps réel
+  useEffect(() => {
+    if (!videoId) return;
+
+    console.log('🔄 Abonnement aux changements pour:', videoId);
+    
+    const unsubscribe = subscribeToVideoStatus(videoId, (data) => {
+      console.log('📊 Nouveau statut reçu:', data);
+      setVideoStatus(data);
+      
+      if (data) {
+        const info = getStatusMessage(data);
+        setStatusInfo(info);
+        
+        // Arrêter le chargement si terminé ou erreur
+        if (info.isComplete || info.hasError) {
+          setIsGenerating(false);
+          refreshUser(); // Rafraîchir le quota
+        }
+      }
+    });
+
+    return () => {
+      console.log('🛑 Désabonnement des changements');
+      unsubscribe();
+    };
+  }, [videoId, refreshUser]);
 
   const stages = [
     { id: 1, name: 'Script', icon: '📝', description: 'Génération du scénario' },
@@ -33,7 +64,9 @@ const CreateVideo = () => {
 
     setIsGenerating(true);
     setError(null);
-    setStatus({ stage: 1, message: 'Démarrage de la génération...' });
+    setVideoId(null);
+    setVideoStatus(null);
+    setStatusInfo({ message: 'Démarrage de la génération...', progress: 5, isComplete: false, hasError: false });
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api';
@@ -42,34 +75,17 @@ const CreateVideo = () => {
         access_code: accessCode
       });
 
-      setVideoId(response.data.video_id);
+      const newVideoId = response.data.video_id;
+      console.log('✅ Vidéo créée:', newVideoId);
+      setVideoId(newVideoId);
       
-      // Simuler la progression (à remplacer par un vrai polling)
-      simulateProgress();
+      // Le useEffect va automatiquement commencer à écouter les changements
       
     } catch (err) {
       setError(err.response?.data?.detail || 'Erreur lors de la génération');
       setIsGenerating(false);
+      setStatusInfo(null);
     }
-  };
-
-  const simulateProgress = () => {
-    let currentStage = 1;
-    const interval = setInterval(() => {
-      currentStage++;
-      if (currentStage <= 4) {
-        setStatus({ 
-          stage: currentStage, 
-          message: `${stages[currentStage - 1].description} en cours...` 
-        });
-      } else {
-        setStatus({ stage: 5, message: 'Vidéo générée avec succès !' });
-        setIsGenerating(false);
-        clearInterval(interval);
-        // Rafraîchir les données utilisateur (quota)
-        refreshUser();
-      }
-    }, 5000);
   };
 
   return (
@@ -171,52 +187,45 @@ const CreateVideo = () => {
       </div>
 
       {/* Progress Display */}
-      {isGenerating && status && (
-        <div className="card">
-          <h3 className="text-xl font-bold mb-6 flex items-center">
-            <Loader2 className="w-6 h-6 mr-2 animate-spin text-primary" />
-            Pipeline en cours d'exécution
-          </h3>
+      {isGenerating && statusInfo && (
+        <VideoGenerationProgress
+          progress={statusInfo.progress}
+          message={statusInfo.message}
+          detail={statusInfo.detail}
+          isComplete={statusInfo.isComplete}
+          hasError={statusInfo.hasError}
+        />
+      )}
 
-          {/* Progress Steps */}
-          <div className="space-y-4">
-            {stages.map((stage) => (
-              <div
-                key={stage.id}
-                className={`flex items-center space-x-4 p-4 rounded-lg transition-all duration-300 ${
-                  status.stage === stage.id
-                    ? 'bg-primary/20 border border-primary'
-                    : status.stage > stage.id
-                    ? 'bg-green-900/20 border border-green-700'
-                    : 'bg-gray-700/50 border border-gray-700'
-                }`}
-              >
-                <div className="text-3xl">{stage.icon}</div>
-                <div className="flex-1">
-                  <h4 className="font-semibold">{stage.name}</h4>
-                  <p className="text-sm text-gray-400">{stage.description}</p>
-                </div>
-                {status.stage === stage.id && (
-                  <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                )}
-                {status.stage > stage.id && (
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                )}
-              </div>
-            ))}
-          </div>
-
-          {status.stage === 5 && (
-            <div className="mt-6 p-4 bg-green-900/20 border border-green-700 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <CheckCircle className="w-6 h-6 text-green-500" />
-                <div>
-                  <p className="font-semibold text-green-400">Vidéo générée avec succès !</p>
-                  <p className="text-sm text-gray-400">ID: {videoId}</p>
-                </div>
+      {/* Success Display with Video Info */}
+      {statusInfo?.isComplete && videoStatus && (
+        <div className="card border-green-700 bg-green-900/20 mt-6">
+          <div className="flex items-start space-x-3">
+            <CheckCircle className="w-6 h-6 text-green-500 mt-1" />
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-400 mb-1">Vidéo générée avec succès !</h4>
+              <p className="text-sm text-gray-300 mb-3">ID: {videoId}</p>
+              <div className="flex space-x-3">
+                <a
+                  href="/my-videos"
+                  className="btn-primary text-sm"
+                >
+                  Voir mes vidéos
+                </a>
+                <button
+                  onClick={() => {
+                    setVideoId(null);
+                    setVideoStatus(null);
+                    setStatusInfo(null);
+                    setTheme('');
+                  }}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition-colors"
+                >
+                  Créer une autre vidéo
+                </button>
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 

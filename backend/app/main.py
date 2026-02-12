@@ -1,13 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
-from .routers import videos, auth
+from .routers import videos, auth, websocket
 
 # Créer l'application FastAPI
 app = FastAPI(
-    title="Pipeline Vidéo IA API",
-    description="API pour la génération automatique de vidéos TikTok/Shorts avec IA",
-    version="1.0.0"
+    title="Pipeline Vidéo IA API V2",
+    description="API pour la génération automatique de vidéos TikTok/Shorts avec IA (Veo 3.1)",
+    version="2.1.0"
 )
 
 # Configuration CORS
@@ -22,6 +22,7 @@ app.add_middleware(
 # Inclure les routers
 app.include_router(auth.router)
 app.include_router(videos.router)
+app.include_router(websocket.router)
 
 
 @app.get("/")
