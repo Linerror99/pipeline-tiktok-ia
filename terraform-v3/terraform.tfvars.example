@@ -1,0 +1,21 @@
+project_id      = "reetik-project"
+region          = "us-central1"
+environment     = "prod"
+
+# Buckets V3
+bucket_artifacts_v3  = "reetik-v3-artifacts"
+bucket_uploads_v3    = "reetik-v3-uploads"
+bucket_thumbnails_v3 = "reetik-v3-thumbnails"
+
+# Backend
+backend_secret_key = "CHANGE-THIS-TO-YOUR-SECRET-KEY-MIN-32-CHARS"
+
+# CORS
+cors_origins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  # Add your production frontend URL here
+]
+
+# Scheduler (every minute)
+monitor_schedule = "*/1 * * * *"

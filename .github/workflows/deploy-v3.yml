@@ -1,0 +1,135 @@
+name: Deploy Reetik V3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend-v3/**'
+      - 'agent-video-veo31/**'
+      - 'agent-thumbnail/**'
+      - 'cloud-functions/monitor-extensions-v3/**'
+      - 'terraform-v3/**'
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: reetik-project
+  REGION: us-central1
+  ARTIFACT_REPO: reetik-v3
+
+jobs:
+  # ── Backend V3 ──────────────────────────────────
+  deploy-backend:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(join(github.event.commits.*.modified, ','), 'backend-v3/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_V3 }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push backend-v3
+        run: |
+          docker build -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend-v3:${{ github.sha }} \
+                        -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend-v3:latest \
+                        backend-v3/
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend-v3 --all-tags
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy backend-v3 \
+            --image=${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REPO }}/backend-v3:${{ github.sha }} \
+            --region=${{ env.REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --set-env-vars="PROJECT_ID=${{ env.PROJECT_ID }},REGION=${{ env.REGION }},JWT_SECRET_KEY=${{ secrets.JWT_SECRET_V3 }}"
+
+  # ── Cloud Functions ─────────────────────────────
+  deploy-functions:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      contains(join(github.event.commits.*.modified, ','), 'agent-video-veo31/') ||
+      contains(join(github.event.commits.*.modified, ','), 'agent-thumbnail/') ||
+      contains(join(github.event.commits.*.modified, ','), 'cloud-functions/monitor-extensions-v3/')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_V3 }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy agent-video-veo31
+        run: |
+          gcloud functions deploy agent-video-veo31 \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --runtime=python312 \
+            --source=agent-video-veo31/ \
+            --entry-point=generate_video_veo31 \
+            --trigger-event-filters="type=google.cloud.storage.object.v1.finalized" \
+            --trigger-event-filters="bucket=reetik-v3-artifacts" \
+            --memory=2Gi \
+            --timeout=540s \
+            --service-account=reetik-v3-functions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Deploy monitor-extensions-v3
+        run: |
+          gcloud functions deploy monitor-extensions-v3 \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --runtime=python312 \
+            --source=cloud-functions/monitor-extensions-v3/ \
+            --entry-point=check_all_pending \
+            --trigger-http \
+            --memory=1Gi \
+            --timeout=300s \
+            --service-account=reetik-v3-functions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Deploy agent-thumbnail
+        run: |
+          gcloud functions deploy agent-thumbnail-v3 \
+            --gen2 \
+            --region=${{ env.REGION }} \
+            --runtime=python312 \
+            --source=agent-thumbnail/ \
+            --entry-point=generate_thumbnail \
+            --trigger-http \
+            --memory=1Gi \
+            --timeout=300s \
+            --service-account=reetik-v3-functions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+  # ── Tests ───────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest pytest-asyncio httpx
+          pip install -r backend-v3/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          cd ${{ github.workspace }}
+          python -m pytest tests/unit/ -v --tb=short

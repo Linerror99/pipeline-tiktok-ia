@@ -1,0 +1,27 @@
+# Reetik V3 — Docker Compose (développement local)
+
+services:
+  backend-v3:
+    build:
+      context: ./backend-v3
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8080"
+    environment:
+      - PROJECT_ID=reetik-project
+      - REGION=us-central1
+      - BUCKET_NAME_V3=reetik-v3-artifacts
+      - BUCKET_UPLOADS_V3=reetik-v3-uploads
+      - BUCKET_THUMBNAILS_V3=reetik-v3-thumbnails
+      - JWT_SECRET_KEY=dev-secret-key-change-in-production-min-32-chars
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/credentials.json
+    volumes:
+      - ./backend-v3:/app
+      - ./backend-v3/credentials.json:/app/credentials.json:ro
+    restart: unless-stopped
+    networks:
+      - reetik-v3
+
+networks:
+  reetik-v3:
+    driver: bridge
