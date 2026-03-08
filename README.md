@@ -565,21 +565,21 @@ https://console.firebase.google.com/project/reetik-project/firestore
 - [x] Docker Compose pour développement local
 - [x] CORS Cloud Storage pour lecture vidéos
 
-### 🔄 En Cours
+### 🔄 En Cours (Sprint Actuel)
 - [ ] **Monitoring avancé** : Dashboards Cloud Monitoring + Alertes
+- [ ] **Tests automatisés** : Backend (pytest) + Frontend (Playwright)
 - [ ] **Optimisation coûts** : Cache Gemini, réduction taille clips
-- [ ] **Tests end-to-end** : Playwright + tests d'API
 
-### 🎯 Roadmap
-- [ ] Publication automatique sur TikTok/YouTube via APIs
-- [ ] Support multi-langues (EN, ES, DE) pour scripts
-- [ ] Templates de styles visuels (Cartoon, Réaliste, Cinématique)
-- [ ] Musique de fond automatique (bibliothèque libre de droits)
-- [ ] Analytics avancés (vues, engagement, A/B testing)
-- [ ] Système de crédits/paiements (Stripe)
-- [ ] Transcription multi-langues (Whisper multilingue)
-- [ ] Mode batch (générer plusieurs vidéos en parallèle)
-- [ ] Customisation sous-titres (couleurs, polices, animations)
+### 🎯 Roadmap Complète
+Consultez **[ROADMAP.md](ROADMAP.md)** pour la feuille de route détaillée avec :
+- Migration Veo 3.1 audio natif (vidéos fluides 60-141s)
+- Système de personnages récurrents (Nano Banana)
+- Templates styles visuels (7 styles)
+- Multi-langues (FR, EN, ES, DE, IT)
+- Musique de fond automatique
+- Publication auto TikTok/YouTube
+- Analytics avancés & A/B testing
+- Monétisation (Stripe, plans Pro/Business)
 
 ---
 
@@ -591,24 +591,10 @@ MIT License - Voir [LICENSE](LICENSE)
 
 ## 👤 Auteur
 
-**Linerror99Su**
-- GitHub: [@Linerror99Su](https://github.com/Linerror99Su)
-- Projet: Pipeline Vidéo IA TikTok
-
----
-
-## � Licence
-
-MIT License - Voir [LICENSE](LICENSE)
-
----
-
-## 👤 Auteur
-
 **Linerror99**
 - GitHub: [@Linerror99](https://github.com/Linerror99)
 - Projet: Reetik - Génération Vidéos IA
-- Stack: Google Cloud + Vertex AI (Gemini 2.5 Pro + Veo 3.0)
+- Stack: Google Cloud + Vertex AI (Gemini 2.5 Pro + Veo 3.1)
 
 ---
 
