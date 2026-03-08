@@ -31,7 +31,7 @@ def test_generation_simple():
     print(f"🎯 Blocs demandés: {target_blocks} ({expected_duration}s)")
     print("=" * 70)
     
-    model = GenerativeModel("gemini-2.5-pro")
+    model = GenerativeModel("gemini-3.1-pro-preview")
     
     prompt = f"""
 Tu es un scénariste expert pour des vidéos TikTok virales.

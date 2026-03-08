@@ -83,7 +83,7 @@ def retry_failed_clip(doc_data):
         print(f"🔄 Retry clip {scene_index} pour vidéo {video_id}")
         
         location = "us-central1"
-        model_id = "veo-3.0-generate-001"
+        model_id = "veo-3.1-generate-001"
         output_storage_uri = f"gs://{bucket_name}/video_clips/{video_id}/clip_{scene_index}/"
         
         api_endpoint = f"https://{location}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{location}/publishers/google/models/{model_id}:predictLongRunning"

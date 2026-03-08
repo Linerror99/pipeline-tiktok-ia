@@ -2,16 +2,16 @@
 
 [![Google Cloud](https://img.shields.io/badge/Google%20Cloud-4285F4?logo=google-cloud&logoColor=white)](https://cloud.google.com)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Pro-orange)](https://deepmind.google/technologies/gemini/)
+[![Gemini](https://img.shields.io/badge/Gemini-3.1%20Pro-orange)](https://deepmind.google/technologies/gemini/)
 [![Veo](https://img.shields.io/badge/Veo-3.1-red)](https://deepmind.google/technologies/veo/)
 
-Pipeline complète de génération automatique de vidéos TikTok/Shorts virales à partir d'un simple thème. Utilise Gemini 2.5 Pro, **Veo 3.1** (modèle vidéo IA le plus avancé), Google TTS Premium, et Whisper.
+Pipeline complète de génération automatique de vidéos TikTok/Shorts virales à partir d'un simple thème. Utilise Gemini 3.1 Pro, **Veo 3.1** (modèle vidéo IA le plus avancé), Google TTS Premium, et Whisper.
 
 ---
 
 ## 🚀 Fonctionnalités
 
-- ✅ **Génération de script IA** avec Gemini 2.5 Pro
+- ✅ **Génération de script IA** avec Gemini 3.1 Pro
 - ✅ **Voix off premium** (voix Gemini naturelle)
 - ✅ **Clips vidéo créatifs** générés par **Veo 3.1** (qualité cinématique, mouvement fluide, cohérence temporelle)
 - ✅ **Sous-titres style TikTok** synchronisés (Whisper + ASS)
@@ -54,7 +54,7 @@ Thème → Agent Script (Gemini) → Agent Audio (TTS) → Agent Vidéo (Veo) �
 |-----------|-------------|
 | **Frontend** | React 18 + TypeScript + Vite + TailwindCSS |
 | **Backend** | FastAPI (Python 3.12) + Pydantic |
-| **Script Generation** | Gemini 2.5 Pro |
+| **Script Generation** | Gemini 3.1 Pro |
 | **Voix Off** | Google TTS Premium (Gemini voice) |
 | **Génération Vidéo** | **Veo 3.1** (format 9:16, HD 1080p, qualité Pro) |
 | **Sous-titres** | OpenAI Whisper + ASS format |
@@ -316,7 +316,7 @@ gcloud monitoring time-series list \
 
 | Service | Coût par Vidéo |
 |---------|----------------|
-| Gemini 2.5 Pro (script) | ~$0.02 |
+| Gemini 3.1 Pro (script) | ~$0.02 |
 | Google TTS Premium (audio) | ~$0.05 |
 | **Veo 3.1** (8 clips x 8s, HD 1080p) | ~$6.40 |
 | Cloud Functions (4 agents) | ~$0.10 |
@@ -594,7 +594,7 @@ MIT License - Voir [LICENSE](LICENSE)
 **Linerror99**
 - GitHub: [@Linerror99](https://github.com/Linerror99)
 - Projet: Reetik - Génération Vidéos IA
-- Stack: Google Cloud + Vertex AI (Gemini 2.5 Pro + Veo 3.1)
+- Stack: Google Cloud + Vertex AI (Gemini 3.1 Pro + Veo 3.1)
 
 ---
 
@@ -602,7 +602,7 @@ MIT License - Voir [LICENSE](LICENSE)
 
 ### Technologies & Services
 - **Google Cloud Platform** - Infrastructure Cloud Run, Cloud Functions, Cloud Storage
-- **Google DeepMind** - Gemini 2.5 Pro (génération scripts) & **Veo 3.1** (génération vidéo HD, qualité Pro)
+- **Google DeepMind** - Gemini 3.1 Pro (génération scripts) & **Veo 3.1** (génération vidéo HD, qualité Pro)
 - **Google Cloud AI** - Text-to-Speech Premium (voix naturelles)
 - **OpenAI** - Whisper (transcription & synchronisation sous-titres)
 - **FFmpeg** - Traitement vidéo et assemblage

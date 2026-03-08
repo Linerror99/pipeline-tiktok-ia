@@ -91,7 +91,7 @@ def generate_video_v2(cloudevent):
             # Générer avec Veo 3.1 (avec gestion des erreurs de safety)
             try:
                 operation = genai_client.models.generate_videos(
-                    model="veo-3.1-generate-preview",
+                    model="veo-3.1-generate-001",
                     prompt=full_prompt,
                     config=types.GenerateVideosConfig(
                         aspect_ratio="9:16",
@@ -117,7 +117,7 @@ def generate_video_v2(cloudevent):
                     
                     try:
                         operation = genai_client.models.generate_videos(
-                            model="veo-3.1-generate-preview",
+                            model="veo-3.1-generate-001",
                             prompt=fallback_prompt,
                             config=types.GenerateVideosConfig(
                                 aspect_ratio="9:16",

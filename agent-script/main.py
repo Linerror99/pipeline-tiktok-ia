@@ -41,7 +41,7 @@ def generate_script(request):
     
     print(f"📊 Blocs à générer: {target_blocks} (durée: {expected_duration}s)")
     
-    model = GenerativeModel("gemini-2.5-pro")
+    model = GenerativeModel("gemini-3.1-pro-preview")
     
     # Nouveau prompt format BLOCS avec SAFETY GUIDELINES
     prompt = f"""
