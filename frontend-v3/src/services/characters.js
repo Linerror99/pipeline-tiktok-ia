@@ -16,13 +16,16 @@ export const characterService = {
     return data
   },
 
-  async generate(id) {
-    const { data } = await api.post(`/characters/${id}/generate`)
+  async generate(projectId, characterId) {
+    const { data } = await api.post(`/characters/${characterId}/generate`, {
+      character_id: characterId,
+      project_id: projectId,
+    })
     return data
   },
 
-  async regenerate(id) {
-    const { data } = await api.post(`/characters/${id}/regenerate`)
+  async regenerate(projectId, characterId) {
+    const { data } = await api.post(`/characters/${characterId}/regenerate`)
     return data
   },
 

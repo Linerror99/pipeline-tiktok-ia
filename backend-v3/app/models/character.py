@@ -22,6 +22,8 @@ class CharacterGenerateRequest(BaseModel):
     """Demande de génération d'image Imagen 4."""
     character_id: str
     project_id: str
+    traits: Optional[dict] = None
+    custom_prompt: Optional[str] = None
 
 
 class CharacterResponse(BaseModel):

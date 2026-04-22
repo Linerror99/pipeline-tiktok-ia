@@ -34,24 +34,35 @@ def _get_storage_client():
 
 def build_character_prompt(traits: dict) -> str:
     """Construit un prompt Imagen 4 à partir des traits du personnage."""
-    parts = ["Character portrait for TikTok video, vertical 9:16 format"]
+    parts = []
 
-    if traits.get("name"):
-        parts.append(f"named '{traits['name']}'")
-    if traits.get("style"):
-        parts.append(f"in {traits['style']} style")
-    if traits.get("colors"):
-        parts.append(f"with dominant colors: {traits['colors']}")
-    if traits.get("personality"):
-        parts.append(f"personality: {traits['personality']}")
+    # Le look distinctif en premier — c'est le concept visuel principal
     if traits.get("look"):
-        parts.append(f"wearing/accessories: {traits['look']}")
+        parts.append(traits["look"])
     if traits.get("description"):
         parts.append(traits["description"])
 
-    parts.append("High quality, detailed, consistent character design, full body pose, clean background")
+    # Style
+    style = traits.get("style", "anime shonen")
+    parts.append(f"{style} style")
 
-    return ", ".join(parts)
+    # Nom
+    if traits.get("name"):
+        parts.append(f"character named '{traits['name']}'")
+
+    # Couleurs
+    if traits.get("colors"):
+        parts.append(f"color palette: {traits['colors']}")
+
+    # Personnalité (expression)
+    if traits.get("personality"):
+        parts.append(f"expression and attitude: {traits['personality']}")
+
+    # Specs techniques
+    parts.append("full body pose, clean gradient background, TikTok vertical format")
+    parts.append("high quality detailed illustration, consistent character design")
+
+    return ", ".join(filter(None, parts))
 
 
 async def generate_character_image(

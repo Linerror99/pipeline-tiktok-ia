@@ -71,6 +71,14 @@ async def chat_with_ai(
         )
         result["character_id"] = char["id"]
 
+    # Sauvegarder les traits quand le personnage est prêt à être généré
+    char_id = data.character_id or result.get("character_id")
+    if result.get("ready_to_generate") and char_id:
+        trait_updates = {"ai_description": result["ai_message"]}
+        if result.get("suggested_traits"):
+            trait_updates["traits"] = result["suggested_traits"]
+        firestore_service.update_character(char_id, trait_updates)
+
     return CharacterChatResponse(
         ai_message=result["ai_message"],
         character_id=data.character_id or result.get("character_id"),
@@ -94,8 +102,10 @@ async def generate_character(
     if not project or project.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    # Mettre à jour les traits
+    # Mettre à jour les traits — enrichir avec ai_description si dispo
     traits = data.traits or char.get("traits", {})
+    if char.get("ai_description") and not traits.get("description"):
+        traits = {**traits, "description": char["ai_description"]}
     firestore_service.update_character(character_id, {
         "traits": traits,
         "status": "generating",
@@ -115,7 +125,8 @@ async def generate_character(
 
     # Mettre à jour le personnage
     firestore_service.update_character(character_id, {
-        "image_url": result["image_url"],
+        "image_url": result["signed_url"],
+        "gcs_path": result["gcs_path"],
         "status": "ready",
         "traits": traits,
     })
@@ -152,7 +163,8 @@ async def regenerate_character(
         raise HTTPException(status_code=500, detail=result.get("error", "Erreur de génération"))
 
     firestore_service.update_character(character_id, {
-        "image_url": result["image_url"],
+        "image_url": result["signed_url"],
+        "gcs_path": result["gcs_path"],
         "status": "ready",
     })
 
