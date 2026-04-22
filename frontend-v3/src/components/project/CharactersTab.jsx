@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Users, Wand2, RefreshCw, ChevronDown, ChevronUp, Loader2, AlertCircle, Image } from 'lucide-react'
 import ChatPanel from './ChatPanel'
@@ -8,17 +8,33 @@ import { characterService } from '../../services/characters'
 export default function CharactersTab({ projectId }) {
   const [characters, setCharacters] = useState([])
   const [messages, setMessages] = useState([])
+  const [characterId, setCharacterId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [chatLoading, setChatLoading] = useState(false)
   const [generating, setGenerating] = useState(null)
   const [expanded, setExpanded] = useState(null)
   const [error, setError] = useState(null)
+  const restoredRef = useRef(false)
 
   const loadCharacters = useCallback(async () => {
     try {
       setLoading(true)
       const res = await characterService.list(projectId)
-      setCharacters(res.data?.characters || [])
+      const chars = res.characters || []
+      setCharacters(chars)
+
+      // Restaurer l'historique au premier chargement
+      if (!restoredRef.current && chars.length > 0) {
+        restoredRef.current = true
+        // Prendre le dernier personnage créé (le plus récent)
+        const lastChar = chars[chars.length - 1]
+        setCharacterId(lastChar.id)
+        const history = (lastChar.chat_history || []).map((m) => ({
+          role: m.role === 'model' ? 'assistant' : m.role,
+          content: m.content,
+        }))
+        if (history.length > 0) setMessages(history)
+      }
     } catch {
       setError('Erreur lors du chargement des personnages')
     } finally {
@@ -33,9 +49,19 @@ export default function CharactersTab({ projectId }) {
     setChatLoading(true)
     setError(null)
     try {
-      const res = await characterService.chat(projectId, message)
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.data.response }])
-      if (res.data.characters_updated) loadCharacters()
+      const payload = { project_id: projectId, message }
+      if (characterId) payload.character_id = characterId
+
+      const res = await characterService.chat(payload)
+      setMessages((prev) => [...prev, { role: 'assistant', content: res.ai_message }])
+
+      // Mémoriser l'ID du personnage créé au premier message
+      if (res.character_id && !characterId) {
+        setCharacterId(res.character_id)
+        restoredRef.current = true // évite l'écrasement des messages au prochain loadCharacters
+      }
+
+      if (res.ready_to_generate) loadCharacters()
     } catch {
       setError('Erreur lors de la conversation')
     } finally {

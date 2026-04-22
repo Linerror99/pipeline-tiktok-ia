@@ -85,7 +85,7 @@ async def generate_video(
     return video
 
 
-@router.get("/", response_model=VideoListResponse)
+@router.get("", response_model=VideoListResponse)
 async def list_videos(
     project_id: str = None,
     current_user: dict = Depends(get_current_user),
@@ -95,7 +95,7 @@ async def list_videos(
         user_id=current_user["id"],
         project_id=project_id,
     )
-    return VideoListResponse(videos=videos, total=len(videos))
+    return VideoListResponse(videos=videos, count=len(videos))
 
 
 @router.get("/{video_id}", response_model=VideoResponse)

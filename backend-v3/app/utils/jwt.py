@@ -36,7 +36,7 @@ def decode_token(token: str) -> Optional[dict]:
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> UserInDB:
+) -> dict:
     """Dépendance FastAPI : récupère l'utilisateur depuis le JWT V3."""
     from ..services.firestore_service import get_user_by_id
 
@@ -62,10 +62,23 @@ async def get_current_user(
             detail="Utilisateur introuvable",
         )
 
-    return user
+    return user.model_dump() if hasattr(user, "model_dump") else user
 
 
-def user_to_response(user: UserInDB) -> UserResponse:
+def user_to_response(user) -> UserResponse:
+    """Convertit un UserInDB ou un dict en UserResponse."""
+    if isinstance(user, dict):
+        return UserResponse(
+            id=user["id"],
+            email=user.get("email", ""),
+            display_name=user.get("display_name"),
+            photo_url=user.get("photo_url"),
+            is_admin=user.get("is_admin", False),
+            video_count=user.get("video_count", 0),
+            project_count=user.get("project_count", 0),
+            created_at=user.get("created_at"),
+            last_login=user.get("last_login"),
+        )
     return UserResponse(
         id=user.id,
         email=user.email,

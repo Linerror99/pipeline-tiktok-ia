@@ -46,7 +46,7 @@ async def login_with_firebase(req: FirebaseLoginRequest):
             photo_url=photo_url,
         )
     else:
-        firestore_service.update_last_login(user["id"])
+        firestore_service.update_last_login(user.id)
 
     # Générer JWT interne V3
     token = create_access_token(user)

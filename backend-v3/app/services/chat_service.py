@@ -17,7 +17,7 @@ def _get_client():
         _client = genai.Client(
             vertexai=True,
             project=settings.PROJECT_ID,
-            location=settings.REGION,
+            location="global",
         )
     return _client
 

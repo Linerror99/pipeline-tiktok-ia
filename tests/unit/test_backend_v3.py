@@ -132,13 +132,14 @@ class TestModels:
 
     def test_scenario_validate_with_valid_duration(self):
         from app.models.scenario import ScenarioValidateRequest
-        req = ScenarioValidateRequest(scenario_id="s1", target_duration=15)
+        req = ScenarioValidateRequest(scenario_id="s1", project_id="proj123", target_duration=15)
         assert req.target_duration == 15
 
     def test_scenario_validate_with_character_ids(self):
         from app.models.scenario import ScenarioValidateRequest
         req = ScenarioValidateRequest(
             scenario_id="s1",
+            project_id="proj123",
             target_duration=22,
             character_ids=["c1", "c2"],
         )
@@ -154,7 +155,7 @@ class TestAuthRouter:
     def test_verify_code_valid(self, mock_fs):
         mock_fs.verify_access_code.return_value = True
         client = _get_test_client()
-        resp = client.post("/api/v3/auth/verify-code", json={"code": "ABC123"})
+        resp = client.post("/api/v3/auth/verify-code", json={"code": "ABCD1234"})
         assert resp.status_code == 200
         assert resp.json()["valid"] is True
 
@@ -162,7 +163,7 @@ class TestAuthRouter:
     def test_verify_code_invalid(self, mock_fs):
         mock_fs.verify_access_code.return_value = False
         client = _get_test_client()
-        resp = client.post("/api/v3/auth/verify-code", json={"code": "WRONG"})
+        resp = client.post("/api/v3/auth/verify-code", json={"code": "WRONGXXX"})
         assert resp.status_code == 403
 
     @patch("app.routers.auth.firestore_service")
@@ -216,7 +217,7 @@ class TestProjectsRouter:
         client = _get_test_client()
         resp = client.get("/api/v3/projects/")
         assert resp.status_code == 200
-        assert resp.json()["total"] == 1
+        assert resp.json()["count"] == 1
 
     @patch("app.routers.projects.firestore_service")
     def test_get_project_owned(self, mock_fs):
@@ -287,7 +288,7 @@ class TestVideosRouter:
         client = _get_test_client()
         resp = client.get("/api/v3/videos/?project_id=proj123")
         assert resp.status_code == 200
-        assert resp.json()["total"] == 1
+        assert resp.json()["count"] == 1
 
     @patch("app.routers.videos.firestore_service")
     def test_video_status_completed(self, mock_fs):

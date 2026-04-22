@@ -51,8 +51,8 @@ def create_user_from_firebase(firebase_uid: str, email: str, display_name: str =
         "is_admin": False,
         "video_count": 0,
         "project_count": 0,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "last_login": firestore.SERVER_TIMESTAMP,
+        "created_at": datetime.utcnow(),
+        "last_login": datetime.utcnow(),
     }
     doc_ref = db.collection("users_v3").document()
     doc_ref.set(user_data)
@@ -62,7 +62,7 @@ def create_user_from_firebase(firebase_uid: str, email: str, display_name: str =
 def update_last_login(user_id: str):
     db = get_firestore_client()
     db.collection("users_v3").document(user_id).update(
-        {"last_login": firestore.SERVER_TIMESTAMP}
+        {"last_login": datetime.utcnow()}
     )
 
 
@@ -93,10 +93,10 @@ def create_project(user_id: str, name: str, theme: str, description: str = None)
         "user_id": user_id,
         "character_count": 0,
         "video_count": 0,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
     }
-    doc_ref = db.collection("projects").document()
+    doc_ref = db.collection("projects_v3").document()
     doc_ref.set(project_data)
 
     # Increment user project count
@@ -109,7 +109,7 @@ def create_project(user_id: str, name: str, theme: str, description: str = None)
 
 def get_project(project_id: str) -> Optional[dict]:
     db = get_firestore_client()
-    doc = db.collection("projects").document(project_id).get()
+    doc = db.collection("projects_v3").document(project_id).get()
     if not doc.exists:
         return None
     return {"id": doc.id, **doc.to_dict()}
@@ -117,20 +117,20 @@ def get_project(project_id: str) -> Optional[dict]:
 
 def list_projects(user_id: str) -> List[dict]:
     db = get_firestore_client()
-    docs = db.collection("projects").where("user_id", "==", user_id).order_by("created_at", direction=firestore.Query.DESCENDING).stream()
+    docs = db.collection("projects_v3").where("user_id", "==", user_id).order_by("created_at", direction=firestore.Query.DESCENDING).stream()
     return [{"id": doc.id, **doc.to_dict()} for doc in docs]
 
 
 def update_project(project_id: str, updates: dict) -> bool:
     db = get_firestore_client()
-    updates["updated_at"] = firestore.SERVER_TIMESTAMP
-    db.collection("projects").document(project_id).update(updates)
+    updates["updated_at"] = datetime.utcnow()
+    db.collection("projects_v3").document(project_id).update(updates)
     return True
 
 
 def delete_project(project_id: str, user_id: str) -> bool:
     db = get_firestore_client()
-    db.collection("projects").document(project_id).delete()
+    db.collection("projects_v3").document(project_id).delete()
     db.collection("users_v3").document(user_id).update(
         {"project_count": firestore.Increment(-1)}
     )
@@ -152,14 +152,14 @@ def create_character(project_id: str, name: str = "Nouveau personnage") -> dict:
         "reference_images": [],
         "chat_history": [],
         "status": "draft",
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
     }
     doc_ref = db.collection("characters").document()
     doc_ref.set(char_data)
 
-    db.collection("projects").document(project_id).update(
-        {"character_count": firestore.Increment(1), "updated_at": firestore.SERVER_TIMESTAMP}
+    db.collection("projects_v3").document(project_id).update(
+        {"character_count": firestore.Increment(1), "updated_at": datetime.utcnow()}
     )
     return {"id": doc_ref.id, **char_data}
 
@@ -180,7 +180,7 @@ def list_characters(project_id: str) -> List[dict]:
 
 def update_character(character_id: str, updates: dict) -> bool:
     db = get_firestore_client()
-    updates["updated_at"] = firestore.SERVER_TIMESTAMP
+    updates["updated_at"] = datetime.utcnow()
     db.collection("characters").document(character_id).update(updates)
     return True
 
@@ -189,7 +189,7 @@ def append_character_chat(character_id: str, role: str, content: str):
     db = get_firestore_client()
     db.collection("characters").document(character_id).update({
         "chat_history": firestore.ArrayUnion([{"role": role, "content": content}]),
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "updated_at": datetime.utcnow(),
     })
 
 
@@ -209,8 +209,8 @@ def create_scenario(project_id: str) -> dict:
         "character_ids": [],
         "status": "draft",
         "target_duration": 22,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
     }
     doc_ref = db.collection("scenarios").document()
     doc_ref.set(scenario_data)
@@ -233,7 +233,7 @@ def list_scenarios(project_id: str) -> List[dict]:
 
 def update_scenario(scenario_id: str, updates: dict) -> bool:
     db = get_firestore_client()
-    updates["updated_at"] = firestore.SERVER_TIMESTAMP
+    updates["updated_at"] = datetime.utcnow()
     db.collection("scenarios").document(scenario_id).update(updates)
     return True
 
@@ -242,7 +242,7 @@ def append_scenario_chat(scenario_id: str, role: str, content: str):
     db = get_firestore_client()
     db.collection("scenarios").document(scenario_id).update({
         "chat_history": firestore.ArrayUnion([{"role": role, "content": content}]),
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "updated_at": datetime.utcnow(),
     })
 
 
@@ -266,8 +266,8 @@ def create_video_record(project_id: str, scenario_id: str, target_duration: int)
         "tiktok_title": None,
         "tiktok_hashtags": [],
         "error": None,
-        "created_at": firestore.SERVER_TIMESTAMP,
-        "updated_at": firestore.SERVER_TIMESTAMP,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
         "completed_at": None,
     }
     doc_ref = db.collection("videos_v3").document()
@@ -291,6 +291,11 @@ def list_videos(project_id: str) -> List[dict]:
 
 def update_video(video_id: str, updates: dict) -> bool:
     db = get_firestore_client()
-    updates["updated_at"] = firestore.SERVER_TIMESTAMP
+    updates["updated_at"] = datetime.utcnow()
     db.collection("videos_v3").document(video_id).update(updates)
     return True
+
+
+# Alias du module — permet `from app.services.firestore_service import firestore_service`
+import sys as _sys
+firestore_service = _sys.modules[__name__]

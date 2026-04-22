@@ -11,8 +11,9 @@ import sys
 import os
 
 # Ajouter agent-video-veo31 au path pour les imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "agent-video-veo31"))
+# Note: le dernier insert(0, ...) a la priorité — agent-video-veo31 doit être en dernier
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "cloud-functions", "monitor-extensions-v3"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "agent-video-veo31"))
 
 
 # ============================================================

@@ -14,7 +14,7 @@ export const authService = {
     const result = await signInWithPopup(auth, googleProvider)
     const idToken = await result.user.getIdToken()
     const { data } = await api.post('/auth/login', { id_token: idToken })
-    localStorage.setItem('reetik_v3_token', data.token)
+    localStorage.setItem('reetik_v3_token', data.access_token)
     localStorage.setItem('reetik_v3_user', JSON.stringify(data.user))
     return data
   },

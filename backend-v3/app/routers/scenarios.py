@@ -174,7 +174,7 @@ async def validate_scenario(
     return firestore_service.get_scenario(scenario_id)
 
 
-@router.get("/", response_model=ScenarioListResponse)
+@router.get("", response_model=ScenarioListResponse)
 async def list_scenarios(
     project_id: str,
     current_user: dict = Depends(get_current_user),
@@ -185,7 +185,7 @@ async def list_scenarios(
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     scenarios = firestore_service.list_scenarios(project_id)
-    return ScenarioListResponse(scenarios=scenarios, total=len(scenarios))
+    return ScenarioListResponse(scenarios=scenarios, count=len(scenarios))
 
 
 @router.get("/{scenario_id}", response_model=ScenarioResponse)

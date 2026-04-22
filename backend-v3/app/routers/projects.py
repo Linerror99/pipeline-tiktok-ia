@@ -9,7 +9,7 @@ from ..services.firestore_service import firestore_service
 router = APIRouter(prefix="/api/v3/projects", tags=["projects"])
 
 
-@router.post("/", response_model=ProjectResponse, status_code=201)
+@router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     data: ProjectCreate,
     current_user: dict = Depends(get_current_user),
@@ -24,11 +24,11 @@ async def create_project(
     return project
 
 
-@router.get("/", response_model=ProjectListResponse)
+@router.get("", response_model=ProjectListResponse)
 async def list_projects(current_user: dict = Depends(get_current_user)):
     """Liste les projets de l'utilisateur."""
     projects = firestore_service.list_projects(user_id=current_user["id"])
-    return ProjectListResponse(projects=projects, total=len(projects))
+    return ProjectListResponse(projects=projects, count=len(projects))
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

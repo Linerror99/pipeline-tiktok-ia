@@ -3,7 +3,7 @@ import api from './api'
 export const projectService = {
   async list() {
     const { data } = await api.get('/projects')
-    return data
+    return data.projects ?? data
   },
 
   async get(id) {

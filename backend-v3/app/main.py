@@ -18,6 +18,7 @@ app = FastAPI(
     docs_url="/api/v3/docs",
     redoc_url="/api/v3/redoc",
     openapi_url="/api/v3/openapi.json",
+    redirect_slashes=False,
 )
 
 # CORS

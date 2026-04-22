@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, Users, MessageSquare, Film, Hash, Loader2 } from 'lucide-react'
@@ -22,11 +22,7 @@ export default function ProjectPage() {
   const [activeTab, setActiveTab] = useState('characters')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    loadProject()
-  }, [id])
-
-  const loadProject = async () => {
+  const loadProject = useCallback(async () => {
     try {
       const data = await projectService.get(id)
       setProject(data)
@@ -35,7 +31,11 @@ export default function ProjectPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, navigate])
+
+  useEffect(() => {
+    loadProject()
+  }, [loadProject])
 
   if (loading) {
     return (

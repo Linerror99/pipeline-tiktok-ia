@@ -20,6 +20,24 @@ variable "bucket_name_v2" {
   type        = string
 }
 
+variable "bucket_name_v3" {
+  description = "Bucket V3 — vidéos générées + scripts Veo 3.1"
+  type        = string
+  default     = "reetik-v3-artifacts"
+}
+
+variable "bucket_uploads_v3" {
+  description = "Bucket V3 — fichiers uploadés + images personnages"
+  type        = string
+  default     = "reetik-v3-uploads"
+}
+
+variable "bucket_thumbnails_v3" {
+  description = "Bucket V3 — thumbnails des vidéos"
+  type        = string
+  default     = "reetik-v3-thumbnails"
+}
+
 variable "cloud_functions_timeout" {
   description = "Timeout for Cloud Functions in seconds"
   type        = number

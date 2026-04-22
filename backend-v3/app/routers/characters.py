@@ -45,26 +45,29 @@ async def chat_with_ai(
     if data.character_id:
         firestore_service.append_character_chat(
             data.character_id,
-            {"role": "user", "content": data.message},
+            role="user",
+            content=data.message,
         )
         firestore_service.append_character_chat(
             data.character_id,
-            {"role": "model", "content": result["ai_message"]},
+            role="model",
+            content=result["ai_message"],
         )
     else:
         # Créer un nouveau personnage avec le début de conversation
         char = firestore_service.create_character(
             project_id=data.project_id,
             name="Nouveau personnage",
-            description="",
         )
         firestore_service.append_character_chat(
             char["id"],
-            {"role": "user", "content": data.message},
+            role="user",
+            content=data.message,
         )
         firestore_service.append_character_chat(
             char["id"],
-            {"role": "model", "content": result["ai_message"]},
+            role="model",
+            content=result["ai_message"],
         )
         result["character_id"] = char["id"]
 
@@ -156,7 +159,7 @@ async def regenerate_character(
     return firestore_service.get_character(character_id)
 
 
-@router.get("/", response_model=CharacterListResponse)
+@router.get("", response_model=CharacterListResponse)
 async def list_characters(
     project_id: str,
     current_user: dict = Depends(get_current_user),
@@ -167,7 +170,7 @@ async def list_characters(
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     chars = firestore_service.list_characters(project_id)
-    return CharacterListResponse(characters=chars, total=len(chars))
+    return CharacterListResponse(characters=chars, count=len(chars))
 
 
 @router.get("/{character_id}", response_model=CharacterResponse)
