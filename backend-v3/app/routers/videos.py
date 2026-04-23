@@ -92,7 +92,6 @@ async def list_videos(
 ):
     """Liste les vidéos (optionnellement filtré par projet)."""
     videos = firestore_service.list_videos(
-        user_id=current_user["id"],
         project_id=project_id,
     )
     return VideoListResponse(videos=videos, count=len(videos))

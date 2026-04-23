@@ -58,26 +58,36 @@ async def chat_with_ai(
     if data.scenario_id:
         firestore_service.append_scenario_chat(
             data.scenario_id,
-            {"role": "user", "content": data.message},
+            role="user",
+            content=data.message,
         )
         firestore_service.append_scenario_chat(
             data.scenario_id,
-            {"role": "model", "content": result["ai_message"]},
+            role="model",
+            content=result["ai_message"],
         )
     else:
         scenario = firestore_service.create_scenario(
             project_id=data.project_id,
-            title="Nouveau scénario",
         )
         firestore_service.append_scenario_chat(
             scenario["id"],
-            {"role": "user", "content": data.message},
+            role="user",
+            content=data.message,
         )
         firestore_service.append_scenario_chat(
             scenario["id"],
-            {"role": "model", "content": result["ai_message"]},
+            role="model",
+            content=result["ai_message"],
         )
         result["scenario_id"] = scenario["id"]
+
+    # Sauvegarder le script quand il est prêt
+    scen_id = data.scenario_id or result.get("scenario_id")
+    if result.get("ready_to_validate") and result.get("script_preview") and scen_id:
+        firestore_service.update_scenario(scen_id, {
+            "script": result["script_preview"],
+        })
 
     return ScenarioChatResponse(
         ai_message=result["ai_message"],
@@ -161,14 +171,21 @@ async def validate_scenario(
             detail=f"Durée invalide. Valeurs acceptées: {VALID_DURATIONS}",
         )
 
-    # Le script doit avoir été généré par le chat
-    if not scenario.get("script"):
-        raise HTTPException(status_code=400, detail="Aucun script généré. Continuez le chat IA.")
+    # Générer un script minimal depuis l'historique si aucun script JSON extrait
+    script = scenario.get("script")
+    if not script:
+        chat_history = scenario.get("chat_history", [])
+        last_ai = next(
+            (m["content"] for m in reversed(chat_history) if m.get("role") == "model"),
+            "",
+        )
+        script = {"blocks": [{"type": "VISUEL", "text": last_ai or "Scénario à compléter"}]}
 
     firestore_service.update_scenario(scenario_id, {
         "status": "validated",
         "target_duration": data.target_duration,
         "character_ids": data.character_ids or [],
+        "script": script,
     })
 
     return firestore_service.get_scenario(scenario_id)

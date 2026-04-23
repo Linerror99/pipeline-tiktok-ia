@@ -250,10 +250,11 @@ def append_scenario_chat(scenario_id: str, role: str, content: str):
 # VIDEOS V3
 # ──────────────────────────────────────────────
 
-def create_video_record(project_id: str, scenario_id: str, target_duration: int) -> dict:
+def create_video_record(project_id: str, scenario_id: str, target_duration: int, user_id: str = "", script: dict = None) -> dict:
     db = get_firestore_client()
     video_data = {
         "project_id": project_id,
+        "user_id": user_id,
         "scenario_id": scenario_id,
         "status": "pending",
         "video_url": None,
@@ -285,8 +286,9 @@ def get_video(video_id: str) -> Optional[dict]:
 
 def list_videos(project_id: str) -> List[dict]:
     db = get_firestore_client()
-    docs = db.collection("videos_v3").where("project_id", "==", project_id).order_by("created_at", direction=firestore.Query.DESCENDING).stream()
-    return [{"id": doc.id, **doc.to_dict()} for doc in docs]
+    docs = db.collection("videos_v3").where("project_id", "==", project_id).stream()
+    results = [{"id": doc.id, **doc.to_dict()} for doc in docs]
+    return sorted(results, key=lambda v: v.get("created_at") or "", reverse=True)
 
 
 def update_video(video_id: str, updates: dict) -> bool:

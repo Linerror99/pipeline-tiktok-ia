@@ -12,20 +12,36 @@ import { VALID_DURATIONS } from '../../config/api'
 export default function ScenarioTab({ projectId }) {
   const [scenarios, setScenarios] = useState([])
   const [messages, setMessages] = useState([])
+  const [scenarioId, setScenarioId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [chatLoading, setChatLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [validating, setValidating] = useState(null)
-  const [selectedDuration, setSelectedDuration] = useState(57)
+  const [selectedDuration, setSelectedDuration] = useState(22)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState(null)
   const fileRef = useRef(null)
+  const restoredRef = useRef(false)
 
   const loadScenarios = useCallback(async () => {
     try {
       setLoading(true)
       const res = await scenarioService.list(projectId)
-      setScenarios(res.data?.scenarios || [])
+      const scens = res.scenarios || []
+      setScenarios(scens)
+
+      // Restaurer l'historique au premier chargement
+      if (!restoredRef.current && scens.length > 0) {
+        restoredRef.current = true
+        const last = scens[scens.length - 1]
+        setScenarioId(last.id)
+        if (last.target_duration) setSelectedDuration(last.target_duration)
+        const history = (last.chat_history || []).map((m) => ({
+          role: m.role === 'model' ? 'assistant' : m.role,
+          content: m.content,
+        }))
+        if (history.length > 0) setMessages(history)
+      }
     } catch {
       setError('Erreur lors du chargement des scénarios')
     } finally {
@@ -40,9 +56,17 @@ export default function ScenarioTab({ projectId }) {
     setChatLoading(true)
     setError(null)
     try {
-      const res = await scenarioService.chat(projectId, message, selectedDuration)
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.data.response }])
-      if (res.data.scenario_updated) loadScenarios()
+      const payload = { project_id: projectId, message }
+      if (scenarioId) payload.scenario_id = scenarioId
+
+      const res = await scenarioService.chat(payload)
+      setMessages((prev) => [...prev, { role: 'assistant', content: res.ai_message }])
+
+      if (res.scenario_id && !scenarioId) {
+        setScenarioId(res.scenario_id)
+        restoredRef.current = true
+      }
+      if (res.ready_to_validate) loadScenarios()
     } catch {
       setError('Erreur lors de la conversation')
     } finally {
@@ -75,7 +99,11 @@ export default function ScenarioTab({ projectId }) {
     setValidating(scenarioId)
     setError(null)
     try {
-      await scenarioService.validate(projectId, scenarioId)
+      await scenarioService.validate(scenarioId, {
+        scenario_id: scenarioId,
+        project_id: projectId,
+        target_duration: selectedDuration,
+      })
       await loadScenarios()
     } catch {
       setError('Erreur lors de la validation')

@@ -6,10 +6,12 @@ import {
 } from 'lucide-react'
 import { GoldButton, SecondaryButton } from '../ui/Buttons'
 import { videoService } from '../../services/videos'
+import { scenarioService } from '../../services/scenarios'
 import { VIDEO_STATUS } from '../../config/api'
 
 export default function VideosTab({ projectId }) {
   const [videos, setVideos] = useState([])
+  const [validatedScenario, setValidatedScenario] = useState(null)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(null)
@@ -19,8 +21,13 @@ export default function VideosTab({ projectId }) {
   const loadVideos = useCallback(async () => {
     try {
       setLoading(true)
-      const res = await videoService.list(projectId)
-      setVideos(res.data?.videos || [])
+      const [videosRes, scenariosRes] = await Promise.all([
+        videoService.list(projectId),
+        scenarioService.list(projectId),
+      ])
+      setVideos(videosRes.videos || [])
+      const validated = (scenariosRes.scenarios || []).find(s => s.status === 'validated')
+      setValidatedScenario(validated || null)
     } catch {
       setError('Erreur lors du chargement des vidéos')
     } finally {
@@ -35,13 +42,17 @@ export default function VideosTab({ projectId }) {
   }, [])
 
   const handleGenerate = async () => {
+    if (!validatedScenario) {
+      setError('Aucun scénario validé. Validez d\'abord un scénario dans l\'onglet Scénario.')
+      return
+    }
     setGenerating(true)
     setProgress({ step: 'Initialisation...', percent: 0 })
     setError(null)
 
     try {
-      const res = await videoService.generate(projectId)
-      const videoId = res.data?.video_id
+      const res = await videoService.generate({ scenario_id: validatedScenario.id, project_id: projectId })
+      const videoId = res.id
 
       if (videoId) {
         const ws = videoService.connectWs(videoId)
@@ -112,9 +123,9 @@ export default function VideosTab({ projectId }) {
           </p>
         </div>
 
-        <GoldButton onClick={handleGenerate} disabled={generating} loading={generating}>
+        <GoldButton onClick={handleGenerate} disabled={generating || !validatedScenario} loading={generating}>
           <Zap className="w-4 h-4" />
-          Générer la vidéo
+          {validatedScenario ? 'Générer la vidéo' : 'Scénario requis'}
         </GoldButton>
       </div>
 
