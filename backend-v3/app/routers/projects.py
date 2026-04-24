@@ -78,5 +78,5 @@ async def delete_project(
     if project.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    firestore_service.delete_project(project_id)
+    firestore_service.delete_project(project_id, current_user["id"])
     return {"message": "Projet supprimé"}

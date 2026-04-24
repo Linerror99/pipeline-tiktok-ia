@@ -29,4 +29,8 @@ export const scenarioService = {
     const { data } = await api.post(`/scenarios/${id}/validate`, payload)
     return data
   },
+
+  async remove(id) {
+    await api.delete(`/scenarios/${id}`)
+  },
 }

@@ -11,6 +11,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# ffmpeg nécessaire pour la concaténation des clips Veo
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copier les dépendances
 COPY --from=builder /build/deps /usr/local/lib/python3.12/site-packages/
 

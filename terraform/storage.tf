@@ -126,3 +126,16 @@ resource "google_storage_bucket_iam_member" "thumbnails_v3_sa_access" {
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.cloud_functions_sa.email}"
 }
+
+# tiktok-pipeline-sa a besoin de storage.legacyBucketReader pour bucket.exists() + Veo output
+resource "google_storage_bucket_iam_member" "artifacts_v3_tiktok_sa_reader" {
+  bucket = google_storage_bucket.artifacts_v3.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:tiktok-pipeline-sa@${var.project_id}.iam.gserviceaccount.com"
+}
+
+resource "google_storage_bucket_iam_member" "artifacts_v3_tiktok_sa_writer" {
+  bucket = google_storage_bucket.artifacts_v3.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:tiktok-pipeline-sa@${var.project_id}.iam.gserviceaccount.com"
+}

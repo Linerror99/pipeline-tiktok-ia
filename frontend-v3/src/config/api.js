@@ -1,5 +1,9 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v3'
-const WS_BASE = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/v3`
+
+// WebSocket: même host/port que l'API, remplacer http(s) par ws(s)
+const _apiOrigin = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/^http/, 'ws')
+  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/v3`
 
 export const API = {
   BASE: API_BASE,
@@ -13,7 +17,8 @@ export const API = {
   SCENARIOS: `${API_BASE}/scenarios`,
   VIDEOS: `${API_BASE}/videos`,
   TIKTOK: `${API_BASE}/tiktok`,
-  WS_VIDEO: (videoId) => `${WS_BASE}/video/${videoId}`,
+  // Route backend: /api/v3/videos/{video_id}/ws
+  WS_VIDEO: (videoId) => `${_apiOrigin}/videos/${videoId}/ws`,
 }
 
 export const VALID_DURATIONS = [8, 15, 22, 29, 36, 43, 50, 57]

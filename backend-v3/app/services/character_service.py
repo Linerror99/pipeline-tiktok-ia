@@ -33,34 +33,37 @@ def _get_storage_client():
 
 
 def build_character_prompt(traits: dict) -> str:
-    """Construit un prompt Imagen 4 à partir des traits du personnage."""
+    """Construit un prompt Imagen 4 à partir des traits structurés du personnage."""
     parts = []
 
-    # Le look distinctif en premier — c'est le concept visuel principal
+    # 1. Le look en anglais — issu du JSON structuré généré par Gemini (le plus important)
     if traits.get("look"):
         parts.append(traits["look"])
-    if traits.get("description"):
-        parts.append(traits["description"])
+    # Fallback : description brute (ai_description) seulement si pas de look structuré
+    # On ne l'utilise pas directement car c'est souvent du texte conversationnel
+    # avec emojis et bullets qui pollue le prompt Imagen.
 
-    # Style
-    style = traits.get("style", "anime shonen")
-    parts.append(f"{style} style")
+    # 2. Style artistique
+    style = traits.get("style", "anime shonen style")
+    if "style" not in style.lower():
+        style = f"{style} style"
+    parts.append(style)
 
-    # Nom
+    # 3. Nom du personnage (léger ancrage)
     if traits.get("name"):
         parts.append(f"character named '{traits['name']}'")
 
-    # Couleurs
+    # 4. Couleurs dominantes
     if traits.get("colors"):
         parts.append(f"color palette: {traits['colors']}")
 
-    # Personnalité (expression)
+    # 5. Expression / attitude
     if traits.get("personality"):
-        parts.append(f"expression and attitude: {traits['personality']}")
+        parts.append(f"expression: {traits['personality']}")
 
-    # Specs techniques
-    parts.append("full body pose, clean gradient background, TikTok vertical format")
-    parts.append("high quality detailed illustration, consistent character design")
+    # 6. Specs techniques Imagen
+    parts.append("full body pose, clean gradient background, portrait vertical format")
+    parts.append("high quality detailed illustration, consistent character design, sharp linework")
 
     return ", ".join(filter(None, parts))
 
@@ -97,7 +100,7 @@ async def generate_character_image(
     bucket = storage_client.bucket(settings.BUCKET_UPLOADS_V3)
     image_filename = f"characters/{project_id}/{character_id}/{uuid.uuid4().hex}.png"
     blob = bucket.blob(image_filename)
-    blob.upload_from_string(image_bytes, content_type="image/png")
+    blob.upload_from_string(image_bytes, content_type="image/png", timeout=300)
 
     # URL signée pour accès
     from datetime import timedelta
@@ -144,7 +147,7 @@ async def generate_character_variations(
         image_bytes = gen_img.image.image_bytes
         image_filename = f"characters/{project_id}/{character_id}/var_{uuid.uuid4().hex}.png"
         blob = bucket.blob(image_filename)
-        blob.upload_from_string(image_bytes, content_type="image/png")
+        blob.upload_from_string(image_bytes, content_type="image/png", timeout=300)
 
         from datetime import timedelta
         signed_url = blob.generate_signed_url(expiration=timedelta(hours=24))

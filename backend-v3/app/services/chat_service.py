@@ -30,12 +30,25 @@ Tu aides l'utilisateur à définir un personnage unique avec :
 - Un style visuel (cartoon, anime, 3D, pixel art...)
 - Des couleurs dominantes
 - Une personnalité (drôle, sérieux, mystérieux...)
-- Un look distinctif (vêtements, accessoires)
+- Un look distinctif (vêtements, accessoires, physique)
 
 Pose des questions pour affiner le personnage. Quand tu as assez d'informations,
-propose un résumé structuré et indique que le personnage est prêt à être généré.
+réponds avec un résumé puis génère OBLIGATOIREMENT ce bloc JSON (EXACTEMENT dans ce format) :
 
-Réponds toujours en français. Sois concis et créatif."""
+```json
+{
+  "name": "Nom du personnage",
+  "look": "Detailed English visual description for Imagen 4: body type, skin, hair, outfit, accessories, pose (very precise)",
+  "style": "Art style in English (e.g. anime Blue Lock style, 2D cartoon, Pixar 3D...)",
+  "colors": "Dominant colors in English",
+  "personality": "Expression and attitude in English"
+}
+```
+
+Le champ "look" est CRUCIAL — décris en anglais précisément le physique, tenue, couleurs, pose.
+Après ce bloc JSON, dis que le personnage est prêt à être généré.
+
+Réponds toujours en français sauf pour les valeurs du JSON. Sois concis et créatif."""
 
 
 def chat_character(chat_history: List[dict], user_message: str, project_theme: str = "") -> dict:
@@ -68,7 +81,7 @@ def chat_character(chat_history: List[dict], user_message: str, project_theme: s
         contents=messages,
         config=types.GenerateContentConfig(
             temperature=0.8,
-            max_output_tokens=1000,
+            max_output_tokens=8192,
         ),
     )
 
@@ -89,8 +102,22 @@ def chat_character(chat_history: List[dict], user_message: str, project_theme: s
 
 
 def _extract_character_traits(text: str) -> Optional[dict]:
-    """Tente d'extraire les traits du personnage depuis la réponse IA."""
-    # Heuristique simple : chercher des patterns structurés
+    """Extrait les traits structurés depuis le bloc JSON dans la réponse IA."""
+    import re
+    # Chercher un bloc ```json ... ```
+    json_match = re.search(r"```json\s*([\s\S]*?)\s*```", text)
+    if json_match:
+        try:
+            data = json.loads(json_match.group(1))
+            # Filtrer les champs attendus
+            valid_keys = {"name", "look", "style", "colors", "personality"}
+            traits = {k: v for k, v in data.items() if k in valid_keys and v}
+            if traits:
+                return traits
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+    # Fallback heuristique si pas de JSON
     traits = {}
     lines = text.split("\n")
     for line in lines:
@@ -116,13 +143,19 @@ Tu aides l'utilisateur à écrire un scénario avec :
 Chaque bloc = ~7 secondes de vidéo. Le premier bloc = 8 secondes.
 L'audio est natif (généré par Veo, pas de TTS externe).
 
+RÈGLE IMPORTANTE pour les blocs VISUEL :
+- Décris les actions, la scène, les mouvements de caméra en anglais ou en français
+- N'utilise JAMAIS de noms de personnes réelles (footballeurs, célébrités, artistes...)
+- Décris les personnages par leurs caractéristiques visuelles (ex: "le joueur en maillot bleu #7")
+- Structure recommandée : Sujet + Action + Scène + Style caméra
+
 Si l'utilisateur upload des fichiers (images, documents), analyse-les et intègre le contexte.
 
 Quand le scénario est complet, génère le script final au format JSON :
 ```json
 {
   "blocks": [
-    {"visuel": "Description visuelle...", "dialogue": "Texte parlé..."},
+    {"visuel": "Description visuelle de la scène et des actions...", "dialogue": "Texte parlé..."},
     ...
   ]
 }
@@ -183,7 +216,7 @@ def chat_scenario(
         contents=messages,
         config=types.GenerateContentConfig(
             temperature=0.7,
-            max_output_tokens=2000,
+            max_output_tokens=8192,
         ),
     )
 

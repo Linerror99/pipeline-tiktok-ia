@@ -33,8 +33,18 @@ export const videoService = {
     return data
   },
 
+  async remove(id) {
+    await api.delete(`/videos/${id}`)
+  },
+
+  async retry(id) {
+    const { data } = await api.post(`/videos/${id}/retry`)
+    return data
+  },
+
   /** WebSocket for real-time video status */
   connectWs(videoId, onMessage) {
+    if (!videoId || videoId === 'null') return { onclose: null, onerror: null, close: () => {} }
     const token = localStorage.getItem('reetik_v3_token')
     const wsUrl = `${API.WS_VIDEO(videoId)}?token=${token}`
     const ws = new WebSocket(wsUrl)

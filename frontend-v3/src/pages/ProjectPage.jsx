@@ -33,9 +33,7 @@ export default function ProjectPage() {
     }
   }, [id, navigate])
 
-  useEffect(() => {
-    loadProject()
-  }, [loadProject])
+  useEffect(() => { loadProject() }, [loadProject])
 
   if (loading) {
     return (
@@ -53,64 +51,71 @@ export default function ProjectPage() {
   }[activeTab]
 
   return (
-    <div className="min-h-screen pt-24 pb-16">
-      <div className="max-w-7xl mx-auto px-6 lg:px-8">
-        {/* Back + Title */}
-        <div className="mb-8">
+    <div className="min-h-screen pt-16 flex">
+      {/* ── Sidebar gauche ── */}
+      <aside className="w-56 flex-shrink-0 sticky top-16 h-[calc(100vh-4rem)] border-r border-reetik-border/30
+                         bg-reetik-card/40 backdrop-blur-sm flex flex-col">
+        {/* Back + Project name */}
+        <div className="p-4 border-b border-reetik-border/30">
           <button
             onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-sm text-reetik-gray-400 hover:text-white transition-colors mb-4"
+            className="flex items-center gap-2 text-xs text-reetik-gray-400 hover:text-white transition-colors mb-3"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             Dashboard
           </button>
-          <h1 className="font-serif text-heading text-reetik-cream">{project?.name}</h1>
+          <h2 className="font-semibold text-white text-sm leading-tight truncate">{project?.name}</h2>
           {project?.theme && (
-            <p className="mt-1 text-sm text-reetik-gray-400">{project.theme}</p>
+            <p className="text-xs text-reetik-gray-500 mt-0.5 truncate">{project.theme}</p>
           )}
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-reetik-border/40 mb-8">
-          <div className="flex gap-1 overflow-x-auto">
-            {TABS.map((tab) => (
+        {/* Nav items */}
+        <nav className="flex-1 p-3 space-y-1">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex items-center gap-2 px-5 py-3 text-sm font-medium
-                            transition-colors duration-300 whitespace-nowrap
-                            ${activeTab === tab.id
-                              ? 'text-reetik-gold'
-                              : 'text-reetik-gray-400 hover:text-white'
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium
+                            transition-all duration-200 text-left relative
+                            ${isActive
+                              ? 'bg-reetik-gold/10 text-reetik-gold'
+                              : 'text-reetik-gray-400 hover:text-white hover:bg-reetik-border/20'
                             }`}
               >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-                {activeTab === tab.id && (
+                {isActive && (
                   <motion.div
-                    layoutId="tab-indicator"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-reetik-gold rounded-full"
+                    layoutId="sidebar-indicator"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-reetik-gold rounded-full"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
+                <tab.icon className="w-4 h-4 flex-shrink-0" />
+                {tab.label}
               </button>
-            ))}
-          </div>
-        </div>
+            )
+          })}
+        </nav>
+      </aside>
 
-        {/* Tab content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            <TabContent projectId={id} project={project} onRefresh={loadProject} />
-          </motion.div>
-        </AnimatePresence>
-      </div>
+      {/* ── Main content ── */}
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.25 }}
+            >
+              <TabContent projectId={id} project={project} onRefresh={loadProject} />
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </main>
     </div>
   )
 }

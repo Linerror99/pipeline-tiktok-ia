@@ -193,6 +193,20 @@ def append_character_chat(character_id: str, role: str, content: str):
     })
 
 
+def delete_character(character_id: str) -> bool:
+    db = get_firestore_client()
+    doc = db.collection("characters").document(character_id)
+    char = doc.get()
+    if char.exists:
+        project_id = char.to_dict().get("project_id")
+        doc.delete()
+        if project_id:
+            db.collection("projects_v3").document(project_id).update(
+                {"character_count": firestore.Increment(-1), "updated_at": datetime.utcnow()}
+            )
+    return True
+
+
 # ──────────────────────────────────────────────
 # SCENARIOS
 # ──────────────────────────────────────────────
@@ -246,6 +260,12 @@ def append_scenario_chat(scenario_id: str, role: str, content: str):
     })
 
 
+def delete_scenario(scenario_id: str) -> bool:
+    db = get_firestore_client()
+    db.collection("scenarios").document(scenario_id).delete()
+    return True
+
+
 # ──────────────────────────────────────────────
 # VIDEOS V3
 # ──────────────────────────────────────────────
@@ -295,6 +315,12 @@ def update_video(video_id: str, updates: dict) -> bool:
     db = get_firestore_client()
     updates["updated_at"] = datetime.utcnow()
     db.collection("videos_v3").document(video_id).update(updates)
+    return True
+
+
+def delete_video(video_id: str) -> bool:
+    db = get_firestore_client()
+    db.collection("videos_v3").document(video_id).delete()
     return True
 
 

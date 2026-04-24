@@ -102,10 +102,10 @@ async def generate_character(
     if not project or project.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    # Mettre à jour les traits — enrichir avec ai_description si dispo
+    # Mettre à jour les traits — n'utiliser ai_description que si pas de look structuré
     traits = data.traits or char.get("traits", {})
-    if char.get("ai_description") and not traits.get("description"):
-        traits = {**traits, "description": char["ai_description"]}
+    # Pas de fallback sur ai_description brut : c'est du texte conversationnel
+    # qui pollue le prompt Imagen. Le look structuré (JSON) est dans traits["look"].
     firestore_service.update_character(character_id, {
         "traits": traits,
         "status": "generating",
@@ -223,3 +223,20 @@ async def update_character(
         raise HTTPException(status_code=400, detail="Aucun champ valide")
 
     return firestore_service.update_character(character_id, update_data)
+
+
+@router.delete("/{character_id}", status_code=204)
+async def delete_character(
+    character_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Supprime un personnage."""
+    char = firestore_service.get_character(character_id)
+    if not char:
+        raise HTTPException(status_code=404, detail="Personnage non trouvé")
+
+    project = firestore_service.get_project(char.get("project_id"))
+    if not project or project.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    firestore_service.delete_character(character_id)

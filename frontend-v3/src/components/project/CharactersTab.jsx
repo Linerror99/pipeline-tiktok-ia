@@ -1,48 +1,115 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Users, Wand2, RefreshCw, ChevronDown, ChevronUp, Loader2, AlertCircle, Image } from 'lucide-react'
+import {
+  Users, Wand2, RefreshCw, Loader2, AlertCircle, Image,
+  ArrowLeft, Plus, CheckCircle2, Clock, Trash2,
+} from 'lucide-react'
 import ChatPanel from './ChatPanel'
 import { GoldButton, SecondaryButton } from '../ui/Buttons'
 import { characterService } from '../../services/characters'
 
-export default function CharactersTab({ projectId }) {
-  const [characters, setCharacters] = useState([])
+// ── Vue liste ──────────────────────────────────────────────────────────────
+function CharacterCard({ char, onSelect, generating, onGenerate, onRegenerate, onDelete }) {
+  const isReady = char.status === 'ready' || !!char.image_url
+
+  return (
+    <motion.div
+      layout
+      className="card-hover-glow rounded-2xl overflow-hidden cursor-pointer group"
+      onClick={() => onSelect(char)}
+    >
+      {/* Image */}
+      <div className="aspect-square bg-reetik-dark border-b border-reetik-border/20 relative">
+        {char.image_url ? (
+          <img src={char.image_url} alt={char.name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-reetik-gray-500">
+            <Image className="w-10 h-10 mb-2 opacity-30" />
+            <span className="text-xs">Pas d'image</span>
+          </div>
+        )}
+        {/* Status badge */}
+        <div className={`absolute top-2 right-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border
+          ${isReady
+            ? 'bg-emerald-400/10 border-emerald-400/20 text-emerald-400'
+            : 'bg-yellow-400/10 border-yellow-400/20 text-yellow-400'}`}
+        >
+          {isReady ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+          {isReady ? 'Prêt' : 'Brouillon'}
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="p-3 space-y-2">
+        <div>
+          <h4 className="font-semibold text-white text-sm truncate">{char.name || 'Nouveau personnage'}</h4>
+          {char.role && (
+            <span className="text-xs text-reetik-gold/80 bg-reetik-gold/5 border border-reetik-gold/10
+                             px-2 py-0.5 rounded-full inline-block mt-0.5">
+              {char.role}
+            </span>
+          )}
+        </div>
+
+        {/* Action */}
+        <div onClick={(e) => e.stopPropagation()}>
+          {char.image_url ? (
+            <SecondaryButton size="sm" onClick={() => onRegenerate(char.id)}
+              disabled={generating === char.id} className="w-full text-xs">
+              {generating === char.id
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <RefreshCw className="w-3.5 h-3.5" />}
+              Régénérer image
+            </SecondaryButton>
+          ) : (
+            <GoldButton size="sm" onClick={() => onGenerate(char.id)}
+              disabled={generating === char.id} loading={generating === char.id}
+              className="w-full text-xs">
+              <Wand2 className="w-3.5 h-3.5" />
+              Générer image
+            </GoldButton>
+          )}
+        </div>
+
+        {/* Delete */}
+        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => onDelete(char.id)}
+            className="p-1.5 rounded-lg text-reetik-gray-600
+                       hover:text-red-400 hover:bg-red-500/10
+                       transition-colors"
+            title="Supprimer le personnage"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+// ── Vue chat individuel ────────────────────────────────────────────────────
+function CharacterChat({ projectId, character, onBack, onUpdate }) {
   const [messages, setMessages] = useState([])
-  const [characterId, setCharacterId] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [chatLoading, setChatLoading] = useState(false)
-  const [generating, setGenerating] = useState(null)
-  const [expanded, setExpanded] = useState(null)
+  const [loading, setChatLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
-  const restoredRef = useRef(false)
+  const characterIdRef = useRef(character?.id || null)
 
-  const loadCharacters = useCallback(async () => {
-    try {
-      setLoading(true)
-      const res = await characterService.list(projectId)
-      const chars = res.characters || []
-      setCharacters(chars)
-
-      // Restaurer l'historique au premier chargement
-      if (!restoredRef.current && chars.length > 0) {
-        restoredRef.current = true
-        // Prendre le dernier personnage créé (le plus récent)
-        const lastChar = chars[chars.length - 1]
-        setCharacterId(lastChar.id)
-        const history = (lastChar.chat_history || []).map((m) => ({
+  // Restaurer historique depuis le personnage
+  useEffect(() => {
+    if (character?.chat_history?.length) {
+      setMessages(
+        character.chat_history.map((m) => ({
           role: m.role === 'model' ? 'assistant' : m.role,
           content: m.content,
         }))
-        if (history.length > 0) setMessages(history)
-      }
-    } catch {
-      setError('Erreur lors du chargement des personnages')
-    } finally {
-      setLoading(false)
+      )
+    } else {
+      setMessages([])
     }
-  }, [projectId])
-
-  useEffect(() => { loadCharacters() }, [loadCharacters])
+    characterIdRef.current = character?.id || null
+  }, [character?.id])
 
   const handleChat = async (message) => {
     setMessages((prev) => [...prev, { role: 'user', content: message }])
@@ -50,18 +117,15 @@ export default function CharactersTab({ projectId }) {
     setError(null)
     try {
       const payload = { project_id: projectId, message }
-      if (characterId) payload.character_id = characterId
+      if (characterIdRef.current) payload.character_id = characterIdRef.current
 
       const res = await characterService.chat(payload)
       setMessages((prev) => [...prev, { role: 'assistant', content: res.ai_message }])
 
-      // Mémoriser l'ID du personnage créé au premier message
-      if (res.character_id && !characterId) {
-        setCharacterId(res.character_id)
-        restoredRef.current = true // évite l'écrasement des messages au prochain loadCharacters
+      if (res.character_id && !characterIdRef.current) {
+        characterIdRef.current = res.character_id
       }
-
-      if (res.ready_to_generate) loadCharacters()
+      if (res.ready_to_generate) onUpdate()
     } catch {
       setError('Erreur lors de la conversation')
     } finally {
@@ -69,48 +133,76 @@ export default function CharactersTab({ projectId }) {
     }
   }
 
-  const handleGenerate = async (characterId) => {
-    setGenerating(characterId)
+  const handleGenerate = async () => {
+    setGenerating(true)
     setError(null)
     try {
-      await characterService.generate(projectId, characterId)
-      await loadCharacters()
+      await characterService.generate(projectId, characterIdRef.current)
+      onUpdate()
     } catch {
       setError('Erreur lors de la génération')
     } finally {
-      setGenerating(null)
+      setGenerating(false)
     }
   }
 
-  const handleRegenerate = async (characterId) => {
-    setGenerating(characterId)
+  const handleRegenerate = async () => {
+    setGenerating(true)
     setError(null)
     try {
-      await characterService.regenerate(projectId, characterId)
-      await loadCharacters()
+      await characterService.regenerate(projectId, characterIdRef.current)
+      onUpdate()
     } catch {
       setError('Erreur lors de la régénération')
     } finally {
-      setGenerating(null)
+      setGenerating(false)
     }
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-reetik-gold" />
-            Personnages
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onBack}
+          className="p-2 rounded-xl hover:bg-reetik-border/20 text-reetik-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        {character?.image_url ? (
+          <img src={character.image_url} alt={character.name}
+            className="w-9 h-9 rounded-xl object-cover border border-reetik-border/30" />
+        ) : (
+          <div className="w-9 h-9 rounded-xl bg-reetik-dark border border-reetik-border/30
+                           flex items-center justify-center">
+            <Users className="w-4 h-4 text-reetik-gray-500" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-white text-sm truncate">
+            {character ? character.name || 'Nouveau personnage' : 'Créer un personnage'}
           </h3>
-          <p className="text-sm text-reetik-gray-400 mt-1">
-            Discutez avec l'IA pour créer vos personnages, puis générez leurs images.
-          </p>
+          {character?.role && (
+            <p className="text-xs text-reetik-gray-500 truncate">{character.role}</p>
+          )}
         </div>
-        <span className="text-sm text-reetik-gray-500">
-          {characters.length} personnage{characters.length !== 1 ? 's' : ''}
-        </span>
+
+        {/* Generate / Regenerate button */}
+        {characterIdRef.current && (
+          <div>
+            {character?.image_url ? (
+              <SecondaryButton size="sm" onClick={handleRegenerate} disabled={generating}>
+                {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Régénérer
+              </SecondaryButton>
+            ) : (
+              <GoldButton size="sm" onClick={handleGenerate} disabled={generating} loading={generating}>
+                <Wand2 className="w-3.5 h-3.5" />
+                Image
+              </GoldButton>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -120,15 +212,130 @@ export default function CharactersTab({ projectId }) {
         </div>
       )}
 
-      {/* Chat */}
       <ChatPanel
         messages={messages}
         onSend={handleChat}
-        loading={chatLoading}
-        placeholder="Décrivez vos personnages (ex: un héros aventurier, une vilaine sorcière...)"
+        loading={loading}
+        placeholder="Décrivez votre personnage (apparence, personnalité, rôle...)..."
       />
+    </div>
+  )
+}
 
-      {/* Character Cards */}
+// ── Export principal ───────────────────────────────────────────────────────
+export default function CharactersTab({ projectId }) {
+  const [characters, setCharacters] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(null)
+  const [error, setError] = useState(null)
+  // null = liste, undefined = nouveau chat, object = chat pour ce personnage
+  const [selectedChar, setSelectedChar] = useState(null)
+
+  const loadCharacters = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await characterService.list(projectId)
+      setCharacters(res.characters || [])
+    } catch {
+      setError('Erreur lors du chargement des personnages')
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => { loadCharacters() }, [loadCharacters])
+
+  const handleGenerate = async (charId) => {
+    setGenerating(charId)
+    setError(null)
+    try {
+      await characterService.generate(projectId, charId)
+      await loadCharacters()
+    } catch {
+      setError('Erreur lors de la génération')
+    } finally {
+      setGenerating(null)
+    }
+  }
+
+  const handleRegenerate = async (charId) => {
+    setGenerating(charId)
+    setError(null)
+    try {
+      await characterService.regenerate(projectId, charId)
+      await loadCharacters()
+    } catch {
+      setError('Erreur lors de la régénération')
+    } finally {
+      setGenerating(null)
+    }
+  }
+
+  const handleDelete = async (charId) => {
+    try {
+      await characterService.remove(charId)
+      setCharacters((prev) => prev.filter((c) => c.id !== charId))
+    } catch {
+      setError('Erreur lors de la suppression')
+    }
+  }
+
+  const handleUpdate = useCallback(async () => {
+    await loadCharacters()
+    // Mettre à jour le personnage sélectionné avec les données fraîches
+    setSelectedChar((prev) => {
+      if (!prev) return prev
+      return undefined // retour liste après update automatique (image générée)
+    })
+    await loadCharacters()
+  }, [loadCharacters])
+
+  // ── Vue chat ──
+  if (selectedChar !== null) {
+    // selectedChar = undefined => nouveau personnage, object => existant
+    const char = selectedChar === undefined ? null : selectedChar
+    return (
+      <CharacterChat
+        projectId={projectId}
+        character={char}
+        onBack={async () => {
+          await loadCharacters()
+          setSelectedChar(null)
+        }}
+        onUpdate={async () => {
+          await loadCharacters()
+          setSelectedChar(null)
+        }}
+      />
+    )
+  }
+
+  // ── Vue liste ──
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-reetik-gold" />
+            Personnages
+          </h3>
+          <p className="text-sm text-reetik-gray-400 mt-1">
+            Créez vos personnages et générez leurs images via l'IA.
+          </p>
+        </div>
+        <GoldButton size="sm" onClick={() => setSelectedChar(undefined)}>
+          <Plus className="w-4 h-4" />
+          Nouveau
+        </GoldButton>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-400/5 border border-red-400/20 rounded-xl px-4 py-3">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-reetik-gold/60" />
@@ -136,98 +343,26 @@ export default function CharactersTab({ projectId }) {
       ) : characters.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {characters.map((char) => (
-            <motion.div
+            <CharacterCard
               key={char.id}
-              layout
-              className="card-hover-glow rounded-2xl p-4 space-y-3"
-            >
-              {/* Image or placeholder */}
-              <div className="aspect-square rounded-xl overflow-hidden bg-reetik-dark border border-reetik-border/30">
-                {char.image_url ? (
-                  <img src={char.image_url} alt={char.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center text-reetik-gray-500">
-                    <Image className="w-10 h-10 mb-2 opacity-30" />
-                    <span className="text-xs">Pas encore d'image</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div>
-                <h4 className="font-semibold text-white text-sm">{char.name}</h4>
-                {char.role && (
-                  <span className="text-xs text-reetik-gold/80 bg-reetik-gold/5 border border-reetik-gold/10 
-                                   px-2 py-0.5 rounded-full inline-block mt-1">
-                    {char.role}
-                  </span>
-                )}
-              </div>
-
-              {/* Expandable description */}
-              {char.description && (
-                <div>
-                  <button
-                    onClick={() => setExpanded(expanded === char.id ? null : char.id)}
-                    className="text-xs text-reetik-gray-400 hover:text-reetik-gray-300 flex items-center gap-1"
-                  >
-                    Détails
-                    {expanded === char.id ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </button>
-                  <AnimatePresence>
-                    {expanded === char.id && (
-                      <motion.p
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="text-xs text-reetik-gray-400 mt-2 leading-relaxed overflow-hidden"
-                      >
-                        {char.description}
-                      </motion.p>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                {char.image_url ? (
-                  <SecondaryButton
-                    size="sm"
-                    onClick={() => handleRegenerate(char.id)}
-                    disabled={generating === char.id}
-                    className="flex-1 text-xs"
-                  >
-                    {generating === char.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    )}
-                    Régénérer
-                  </SecondaryButton>
-                ) : (
-                  <GoldButton
-                    size="sm"
-                    onClick={() => handleGenerate(char.id)}
-                    disabled={generating === char.id}
-                    loading={generating === char.id}
-                    className="flex-1 text-xs"
-                  >
-                    <Wand2 className="w-3.5 h-3.5" />
-                    Générer l'image
-                  </GoldButton>
-                )}
-              </div>
-            </motion.div>
+              char={char}
+              onSelect={setSelectedChar}
+              generating={generating}
+              onGenerate={handleGenerate}
+              onRegenerate={handleRegenerate}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       ) : (
-        !loading && messages.length === 0 && (
-          <div className="text-center py-12 text-reetik-gray-500">
-            <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
-            <p className="text-sm">Commencez par discuter avec l'IA pour créer vos personnages</p>
-          </div>
-        )
+        <div className="text-center py-16 text-reetik-gray-500">
+          <Users className="w-14 h-14 mx-auto mb-4 opacity-20" />
+          <p className="text-sm mb-4">Aucun personnage pour l'instant</p>
+          <GoldButton size="sm" onClick={() => setSelectedChar(undefined)}>
+            <Plus className="w-4 h-4" />
+            Créer le premier personnage
+          </GoldButton>
+        </div>
       )}
     </div>
   )

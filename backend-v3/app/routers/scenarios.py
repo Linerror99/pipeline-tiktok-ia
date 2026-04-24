@@ -220,3 +220,20 @@ async def get_scenario(
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     return scenario
+
+
+@router.delete("/{scenario_id}", status_code=204)
+async def delete_scenario(
+    scenario_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Supprime un scénario."""
+    scenario = firestore_service.get_scenario(scenario_id)
+    if not scenario:
+        raise HTTPException(status_code=404, detail="Scénario non trouvé")
+
+    project = firestore_service.get_project(scenario.get("project_id"))
+    if not project or project.get("user_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    firestore_service.delete_scenario(scenario_id)

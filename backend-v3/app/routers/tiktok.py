@@ -17,12 +17,14 @@ class ProfileSuggestRequest(BaseModel):
 
 class HashtagSuggestRequest(BaseModel):
     project_id: str
+    video_id: Optional[str] = None
     video_description: Optional[str] = ""
     count: Optional[int] = 15
 
 
 class TitleSuggestRequest(BaseModel):
     project_id: str
+    video_id: Optional[str] = None
     video_description: Optional[str] = ""
     style: Optional[str] = "accrocheur"
 
@@ -54,10 +56,17 @@ async def get_hashtag_suggestions(
     if not project or project.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
+    # Enrich description with video metadata if video_id provided
+    video_desc = data.video_description or ""
+    if data.video_id:
+        video = firestore_service.get_video(data.video_id)
+        if video:
+            video_desc = video.get("script", video_desc) or video_desc
+
     result = await suggest_hashtags(
         theme=project.get("theme", project.get("name", "")),
-        video_description=data.video_description,
-        count=min(data.count, 30),  # Cap at 30
+        video_description=video_desc,
+        count=min(data.count, 30),
     )
     return result
 
@@ -72,9 +81,15 @@ async def get_title_suggestions(
     if not project or project.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
+    video_desc = data.video_description or ""
+    if data.video_id:
+        video = firestore_service.get_video(data.video_id)
+        if video:
+            video_desc = video.get("script", video_desc) or video_desc
+
     result = await suggest_title(
         theme=project.get("theme", project.get("name", "")),
-        video_description=data.video_description,
+        video_description=video_desc,
         style=data.style,
     )
     return result

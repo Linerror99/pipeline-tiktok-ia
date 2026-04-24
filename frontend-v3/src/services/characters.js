@@ -33,4 +33,8 @@ export const characterService = {
     const { data } = await api.patch(`/characters/${id}`, payload)
     return data
   },
+
+  async remove(id) {
+    await api.delete(`/characters/${id}`)
+  },
 }

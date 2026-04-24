@@ -3,9 +3,10 @@ uvicorn[standard]==0.30.0
 google-cloud-storage==2.18.0
 google-cloud-firestore==2.19.0
 firebase-admin==6.6.0
-google-genai==1.14.0
+google-genai==1.36.0
 PyJWT==2.9.0
 python-multipart==0.0.12
 pydantic==2.9.0
 pydantic-settings==2.5.0
 websockets==13.1
+ffmpeg-python==0.2.0
