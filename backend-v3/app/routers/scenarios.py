@@ -43,8 +43,13 @@ async def chat_with_ai(
                     for f in uploaded_files
                 )
 
-    # Charger les personnages du projet
-    characters = firestore_service.list_characters(data.project_id)
+    # Charger uniquement les personnages sélectionnés (data.character_ids),
+    # ou tous les personnages du projet si aucun n'est spécifié.
+    all_characters = firestore_service.list_characters(data.project_id)
+    if data.character_ids:
+        characters = [c for c in all_characters if c.get("id") in data.character_ids]
+    else:
+        characters = all_characters
 
     result = chat_scenario(
         chat_history=chat_history,

@@ -120,7 +120,7 @@ function ScenarioChat({ projectId, scenario, characters = [], onBack, onUpdate }
     setChatLoading(true)
     setError(null)
     try {
-      const payload = { project_id: projectId, message }
+      const payload = { project_id: projectId, message, character_ids: selectedCharIds }
       if (scenarioIdRef.current) payload.scenario_id = scenarioIdRef.current
 
       const res = await scenarioService.chat(payload)

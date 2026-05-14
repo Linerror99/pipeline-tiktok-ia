@@ -135,19 +135,40 @@ def _extract_character_traits(text: str) -> Optional[dict]:
 
 # ── Chat Scénarios ──────────────────────────────────────
 
+def _char_visual_summary(char: dict) -> str:
+    """Résumé visuel d'un personnage pour le prompt scénario.
+    Utilise traits.look (description Imagen structurée) en priorité.
+    """
+    traits = char.get("traits", {})
+    parts = []
+    if traits.get("look"):
+        parts.append(traits["look"])
+    if traits.get("style"):
+        parts.append(traits["style"])
+    if not parts:
+        fallback = char.get("ai_description") or char.get("description", "")
+        if fallback:
+            parts.append(fallback[:200])
+    return "; ".join(parts) if parts else "pas de description"
+
+
 SCENARIO_SYSTEM_PROMPT = """Tu es un scénariste professionnel pour vidéos TikTok/Shorts.
-Tu aides l'utilisateur à écrire un scénario avec :
-- Des blocs VISUEL (description de la scène pour Veo 3.1)
-- Des blocs DIALOGUE (texte parlé par les personnages, généré en audio par Veo)
 
-Chaque bloc = ~7 secondes de vidéo. Le premier bloc = 8 secondes.
-L'audio est natif (généré par Veo, pas de TTS externe).
+ARCHITECTURE TECHNIQUE (important pour calibrer le nombre de blocs) :
+- Chaque bloc = 1 clip vidéo INDÉPENDANT de 8 secondes généré par Veo 3.1
+- Les clips sont concaténés et trimmés à la durée cible
+- Recommandation : N blocs = ceil(durée_cible / 8)
+  Exemples : 8s → 1 bloc | 15s → 2 blocs | 22s → 3 blocs | 30s → 4 blocs | 45s → 6 blocs
 
-RÈGLE IMPORTANTE pour les blocs VISUEL :
-- Décris les actions, la scène, les mouvements de caméra en anglais ou en français
-- N'utilise JAMAIS de noms de personnes réelles (footballeurs, célébrités, artistes...)
-- Décris les personnages par leurs caractéristiques visuelles (ex: "le joueur en maillot bleu #7")
-- Structure recommandée : Sujet + Action + Scène + Style caméra
+RÈGLES DE CONTENU :
+- Chaque bloc contient un "visuel" (description de scène pour Veo) et un "dialogue" (parole du personnage)
+- Le "visuel" décrit la scène, l'action et la caméra EN ANGLAIS
+- Le "dialogue" est le texte parlé par le personnage en FRANÇAIS
+- N'utilise JAMAIS de noms de personnes réelles (footballeurs, célébrités...)
+- Les personnages sont décrits par leurs caractéristiques visuelles
+
+PERSONNAGES : Les personnages sélectionnés doivent apparaître dans TOUS les blocs visuels.
+Tu recevras leurs descriptions visuelles exactes — utilise-les pour rendre les scènes cohérentes.
 
 Si l'utilisateur upload des fichiers (images, documents), analyse-les et intègre le contexte.
 
@@ -155,13 +176,13 @@ Quand le scénario est complet, génère le script final au format JSON :
 ```json
 {
   "blocks": [
-    {"visuel": "Description visuelle de la scène et des actions...", "dialogue": "Texte parlé..."},
+    {"visuel": "Visual description in English: character action, scene, camera movement...", "dialogue": "Texte parlé en français..."},
     ...
   ]
 }
 ```
 
-Réponds en français. Sois créatif mais concis."""
+Réponds en français. Sois créatif mais concis. Recommande toujours un nombre de blocs adapté à la durée cible."""
 
 
 def chat_scenario(
@@ -184,12 +205,12 @@ def chat_scenario(
 
     if characters:
         chars_desc = "\n".join(
-            f"- {c.get('name', '?')}: {c.get('description', 'pas de description')}"
+            f"- {c.get('name', '?')}: {_char_visual_summary(c)}"
             for c in characters
         )
         messages.append({
             "role": "user",
-            "parts": [{"text": f"Personnages du projet :\n{chars_desc}"}],
+            "parts": [{"text": f"Personnages sélectionnés pour ce scénario (ils DOIVENT apparaître dans les blocs) :\n{chars_desc}"}],
         })
 
     if uploaded_files_context:

@@ -11,6 +11,8 @@ class ScenarioChatRequest(BaseModel):
     scenario_id: Optional[str] = None
     # IDs des fichiers uploadés à inclure dans le contexte
     file_ids: List[str] = []
+    # IDs des personnages sélectionnés pour ce scénario
+    character_ids: List[str] = []
 
 
 class ScenarioChatResponse(BaseModel):
